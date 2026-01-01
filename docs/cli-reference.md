@@ -39,18 +39,26 @@ cloud compute list
 ### `compute launch`
 Launch a new instance.
 ```bash
-cloud compute launch --name my-server --image nginx:alpine
+cloud compute launch --name my-server --image nginx:alpine --port 8080:80 --volume data:/var/lib/data
 ```
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-n, --name` | (required) | Instance name |
 | `-i, --image` | `alpine` | Docker image |
 | `-p, --port` | | Port mapping (host:container) |
+| `-v, --vpc` | | VPC ID or Name |
+| `-V, --volume` | | Volume attachment (vol-name:/path) |
 
 ### `compute stop <id>`
 Stop an instance.
 ```bash
 cloud compute stop a1b2c3d4
+```
+
+### `compute rm <id>`
+Terminate and remove an instance.
+```bash
+cloud compute rm my-server
 ```
 
 ### `compute logs <id>`
@@ -63,6 +71,73 @@ cloud compute logs my-server
 Show detailed instance information.
 ```bash
 cloud compute show my-server
+```
+
+### `compute stats <id>`
+Show instance CPU and Memory usage.
+```bash
+cloud compute stats my-server
+```
+
+---
+
+## volume
+Manage block storage volumes.
+
+### `volume list`
+List all volumes.
+```bash
+cloud volume list
+```
+
+### `volume create`
+Create a new volume.
+```bash
+cloud volume create --name my-data --size 10
+```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-n, --name` | (required) | Volume name |
+| `-s, --size` | `1` | Size in GB |
+
+### `volume rm <id>`
+Delete a volume.
+```bash
+cloud volume rm my-data
+```
+
+---
+
+## vpc
+Manage Virtual Private Clouds.
+
+### `vpc list`
+List all VPCs.
+```bash
+cloud vpc list
+```
+
+### `vpc create`
+Create a new VPC.
+```bash
+cloud vpc create --name my-network
+```
+
+### `vpc rm <id>`
+Delete a VPC.
+```bash
+cloud vpc rm my-network
+```
+
+---
+
+## events
+View system event logs.
+
+### `events list`
+List recent events (audit log).
+```bash
+cloud events list
 ```
 
 ---

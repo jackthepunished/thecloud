@@ -3,9 +3,12 @@
 To build the world's best local-first cloud simulator that teaches cloud concepts through practice.
 
 ## ✨ Features
-- **Compute**: Docker-based instance management (Launch, Stop, List)
+- **Compute**: Docker-based instance management (Launch, Stop, Terminate, Stats)
 - **Storage**: S3-compatible object storage (Upload, Download, Delete)
+- **Block Storage**: Persistent volumes that survive instance termination
+- **Networking**: VPC with isolated Docker networks
 - **Identity**: API Key authentication
+- **Observability**: Real-time CPU/Memory metrics and System Events
 
 ## 🚀 Quick Start
 ```bash
@@ -23,17 +26,21 @@ cloud auth create-demo my-user
 # 4. Launch an instance with port mapping
 cloud compute launch --name my-server --image nginx:alpine --port 8080:80
 
-# 5. Upload a file
-cloud storage upload my-bucket README.md
+# 5. Create and attach a volume
+cloud volume create --name my-data --size 10
+cloud compute launch --name db --image postgres --volume my-data:/var/lib/postgresql/data
 
-# 6. View logs
-cloud compute logs my-server
+# 6. View instance statistics
+cloud compute stats my-server
+
+# 7. View recent events
+cloud events list
 ```
 
 ## 🏗️ Architecture
 - **Backend**: Go (Clean Architecture)
 - **Database**: PostgreSQL (pgx)
-- **Infrastructure**: Docker Engine
+- **Infrastructure**: Docker Engine (Containers, Networks, Volumes)
 - **CLI**: Cobra (command-based) + Survey (interactive)
 
 ## 📚 Documentation

@@ -15,10 +15,17 @@ Prioritized using the **RICE** method (Reach, Impact, Confidence, Effort).
 - [x] Object Storage (S3-compatible API)
 - [x] Virtual Networks (Docker bridge management)
 
-## 🟡 Phase 4: Advanced (In Progress)
+## ✅ Phase 4: Advanced Features (Complete)
 - [x] Port Mapping (access containers via localhost)
-- [x] Instance Logs (`cloud logs`)
+- [x] Instance Logs (`cloud compute logs`)
 - [x] Instance Details (`cloud compute show`)
 - [x] Virtual Private Cloud (VPC)
+- [x] Instance Metrics (`cloud compute stats`)
+- [x] System Events / Audit Logs (`cloud events list`)
+- [x] Block Storage Volumes (`cloud volume create/list/rm`)
+- [x] Volume Attachment (`--volume vol:/path`)
+
+## 🟡 Phase 5: Frontend & Polish (Next)
 - [ ] Next.js Web Dashboard
-- [ ] Custom Database Integration
+- [ ] Database-as-a-Service (RDS)
+- [ ] Load Balancer
