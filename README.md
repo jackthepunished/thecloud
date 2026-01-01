@@ -50,6 +50,7 @@ cloud events list
 |-----|-------------|
 | [Development Guide](docs/development.md) | Setup on Windows, Mac, or Linux |
 | [Roadmap](docs/roadmap.md) | Project phases and progress |
+| [Future Vision](docs/vision.md) | Long-term strategy and goals |
 
 ### 📖 How-to Guides
 | Guide | What you'll learn |
