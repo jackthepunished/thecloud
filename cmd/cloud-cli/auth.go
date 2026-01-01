@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/go-resty/resty/v2"
+	"github.com/poyraz/cloud/pkg/sdk"
 	"github.com/spf13/cobra"
 )
 
@@ -21,32 +21,14 @@ var createDemoCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
-		client := resty.New()
-		resp, err := client.R().
-			SetBody(map[string]string{"name": name}).
-			Post(apiURL + "/auth/keys")
+		client := sdk.NewClient(apiURL, "") // Key not needed for creation usually
+		key, err := client.CreateKey(name)
 
 		if err != nil {
-			fmt.Printf("Error connecting to API: %v\n", err)
+			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
-		if resp.IsError() {
-			fmt.Printf("Failed: %s\n", resp.String())
-			return
-		}
-
-		var result struct {
-			Data struct {
-				Key string `json:"key"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(resp.Body(), &result); err != nil {
-			fmt.Printf("Error parsing response: %v\n", err)
-			return
-		}
-
-		key := result.Data.Key
 		fmt.Printf("🔑 Generated Key: %s\n", key)
 		saveConfig(key)
 		fmt.Println("✅ Key saved to configuration. You can now use 'cloud' commands without flags.")

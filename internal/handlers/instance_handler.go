@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/poyraz/cloud/internal/core/ports"
 	"github.com/poyraz/cloud/pkg/httputil"
 )
@@ -51,13 +50,8 @@ func (h *InstanceHandler) List(c *gin.Context) {
 
 func (h *InstanceHandler) Stop(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		httputil.Error(c, err) // Invalid UUID
-		return
-	}
 
-	if err := h.svc.StopInstance(c.Request.Context(), id); err != nil {
+	if err := h.svc.StopInstance(c.Request.Context(), idStr); err != nil {
 		httputil.Error(c, err)
 		return
 	}
@@ -86,4 +80,15 @@ func (h *InstanceHandler) Get(c *gin.Context) {
 	}
 
 	httputil.Success(c, http.StatusOK, inst)
+}
+
+func (h *InstanceHandler) Terminate(c *gin.Context) {
+	idStr := c.Param("id")
+
+	if err := h.svc.TerminateInstance(c.Request.Context(), idStr); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"message": "instance terminated"})
 }

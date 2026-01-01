@@ -7,8 +7,8 @@ import (
 
 	"strings"
 
-	"github.com/go-resty/resty/v2"
 	"github.com/olekukonko/tablewriter"
+	"github.com/poyraz/cloud/pkg/sdk"
 	"github.com/spf13/cobra"
 )
 
@@ -21,8 +21,7 @@ var computeCmd = &cobra.Command{
 	Short: "Manage compute instances",
 }
 
-func getClient() *resty.Client {
-	client := resty.New()
+func getClient() *sdk.Client {
 	key := apiKey // 1. Flag
 	if key == "" {
 		key = os.Getenv("MINIAWS_API_KEY") // 2. Env Var
@@ -36,8 +35,7 @@ func getClient() *resty.Client {
 		os.Exit(1)
 	}
 
-	client.SetHeader("X-API-Key", key)
-	return client
+	return sdk.NewClient(apiURL, key)
 }
 
 var listCmd = &cobra.Command{
@@ -45,39 +43,30 @@ var listCmd = &cobra.Command{
 	Short: "List all instances",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := getClient()
-		resp, err := client.R().Get(apiURL + "/instances")
+		instances, err := client.ListInstances()
 		if err != nil {
-			fmt.Printf("Error connecting to API: %v\n", err)
+			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
 		if outputJSON {
-			fmt.Println(string(resp.Body()))
-			return
-		}
-
-		var result struct {
-			Data []map[string]interface{} `json:"data"`
-		}
-		if err := json.Unmarshal(resp.Body(), &result); err != nil {
-			fmt.Printf("Error parsing response: %v\n", err)
+			data, _ := json.MarshalIndent(instances, "", "  ")
+			fmt.Println(string(data))
 			return
 		}
 
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header([]string{"ID", "NAME", "IMAGE", "STATUS", "ACCESS"})
 
-		for _, inst := range result.Data {
-			id := fmt.Sprintf("%v", inst["id"])
+		for _, inst := range instances {
+			id := inst.ID
 			if len(id) > 8 {
 				id = id[:8]
 			}
 
 			access := "-"
-			ports := fmt.Sprintf("%v", inst["ports"])
-			if ports != "" && inst["status"] == "RUNNING" {
-				// Show localhost:port for convenience
-				pList := strings.Split(ports, ",")
+			if inst.Ports != "" && inst.Status == "RUNNING" {
+				pList := strings.Split(inst.Ports, ",")
 				var mappings []string
 				for _, mapping := range pList {
 					parts := strings.Split(mapping, ":")
@@ -90,9 +79,9 @@ var listCmd = &cobra.Command{
 
 			table.Append([]string{
 				id,
-				fmt.Sprintf("%v", inst["name"]),
-				fmt.Sprintf("%v", inst["image"]),
-				fmt.Sprintf("%v", inst["status"]),
+				inst.Name,
+				inst.Image,
+				inst.Status,
 				access,
 			})
 		}
@@ -109,26 +98,15 @@ var launchCmd = &cobra.Command{
 		ports, _ := cmd.Flags().GetString("port")
 
 		client := getClient()
-		resp, err := client.R().
-			SetHeader("Content-Type", "application/json").
-			SetBody(map[string]string{
-				"name":  name,
-				"image": image,
-				"ports": ports,
-			}).
-			Post(apiURL + "/instances")
-
+		inst, err := client.LaunchInstance(name, image, ports)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
-		if resp.IsError() {
-			fmt.Printf("Failed: %s\n", resp.String())
-			return
-		}
-
-		fmt.Printf("🚀 Instance launched successfully!\n%s\n", resp.String())
+		fmt.Printf("🚀 Instance launched successfully!\n")
+		data, _ := json.MarshalIndent(inst, "", "  ")
+		fmt.Println(string(data))
 	},
 }
 var stopCmd = &cobra.Command{
@@ -138,14 +116,8 @@ var stopCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
 		client := getClient()
-		resp, err := client.R().Post(apiURL + "/instances/" + id + "/stop")
-		if err != nil {
+		if err := client.StopInstance(id); err != nil {
 			fmt.Printf("Error: %v\n", err)
-			return
-		}
-
-		if resp.IsError() {
-			fmt.Printf("Failed: %s\n", resp.String())
 			return
 		}
 
@@ -160,18 +132,13 @@ var logsCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
 		client := getClient()
-		resp, err := client.R().Get(apiURL + "/instances/" + id + "/logs")
+		logs, err := client.GetInstanceLogs(id)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
-		if resp.IsError() {
-			fmt.Printf("Failed: %s\n", resp.String())
-			return
-		}
-
-		fmt.Print(string(resp.Body()))
+		fmt.Print(logs)
 	},
 }
 
@@ -182,38 +149,40 @@ var showCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
 		client := getClient()
-		resp, err := client.R().Get(apiURL + "/instances/" + id)
+		inst, err := client.GetInstance(id)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
-		if resp.IsError() {
-			fmt.Printf("Failed: %s\n", resp.String())
-			return
-		}
-
-		var result struct {
-			Data map[string]interface{} `json:"data"`
-		}
-		if err := json.Unmarshal(resp.Body(), &result); err != nil {
-			fmt.Printf("Error parsing response: %v\n", err)
-			return
-		}
-
-		inst := result.Data
 		fmt.Printf("\n☁️  Instance Details\n")
 		fmt.Println(strings.Repeat("-", 40))
-		fmt.Printf("%-15s %v\n", "ID:", inst["id"])
-		fmt.Printf("%-15s %v\n", "Name:", inst["name"])
-		fmt.Printf("%-15s %v\n", "Status:", inst["status"])
-		fmt.Printf("%-15s %v\n", "Image:", inst["image"])
-		fmt.Printf("%-15s %v\n", "Ports:", inst["ports"])
-		fmt.Printf("%-15s %v\n", "Created At:", inst["created_at"])
-		fmt.Printf("%-15s %v\n", "Version:", inst["version"])
-		fmt.Printf("%-15s %v\n", "Container ID:", inst["container_id"])
+		fmt.Printf("%-15s %v\n", "ID:", inst.ID)
+		fmt.Printf("%-15s %v\n", "Name:", inst.Name)
+		fmt.Printf("%-15s %v\n", "Status:", inst.Status)
+		fmt.Printf("%-15s %v\n", "Image:", inst.Image)
+		fmt.Printf("%-15s %v\n", "Ports:", inst.Ports)
+		fmt.Printf("%-15s %v\n", "Created At:", inst.CreatedAt)
+		fmt.Printf("%-15s %v\n", "Version:", inst.Version)
+		fmt.Printf("%-15s %v\n", "Container ID:", inst.ContainerID)
 		fmt.Println(strings.Repeat("-", 40))
 		fmt.Println("")
+	},
+}
+
+var rmCmd = &cobra.Command{
+	Use:   "rm [id/name]",
+	Short: "Remove an instance and its resources",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		client := getClient()
+		if err := client.TerminateInstance(id); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+
+		fmt.Printf("🗑️  Instance %s removed successfully.\n", id)
 	},
 }
 
@@ -223,6 +192,7 @@ func init() {
 	computeCmd.AddCommand(stopCmd)
 	computeCmd.AddCommand(logsCmd)
 	computeCmd.AddCommand(showCmd)
+	computeCmd.AddCommand(rmCmd)
 
 	launchCmd.Flags().StringP("name", "n", "", "Name of the instance (required)")
 	launchCmd.Flags().StringP("image", "i", "alpine", "Image to use")

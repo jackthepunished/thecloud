@@ -1,26 +1,24 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/go-resty/resty/v2"
 	"github.com/olekukonko/tablewriter"
+	"github.com/poyraz/cloud/pkg/sdk"
 )
 
 var apiURL = "http://localhost:8080"
 var apiKey string
+var sdkClient *sdk.Client
 
 func main() {
 	// 1. Auth Setup
 	apiKey = os.Getenv("MINIAWS_API_KEY")
 	if apiKey == "" {
 		fmt.Println("⚠️  MINIAWS_API_KEY not set.")
-
 		createDemo := false
 		prompt := &survey.Confirm{
 			Message: "Would you like to generate a temporary key for this session?",
@@ -29,7 +27,6 @@ func main() {
 		survey.AskOne(prompt, &createDemo)
 
 		if createDemo {
-			// Auto-generate key
 			var name string
 			namePrompt := &survey.Input{
 				Message: "Enter a name for your key (e.g. demo-user):",
@@ -37,27 +34,16 @@ func main() {
 			}
 			survey.AskOne(namePrompt, &name)
 
-			// Call API to create key
-			client := resty.New()
-			resp, err := client.R().
-				SetBody(map[string]string{"name": name}).
-				Post(apiURL + "/auth/keys")
-
-			if err == nil && !resp.IsError() {
-				var result struct {
-					Data struct {
-						Key string `json:"key"`
-					} `json:"data"`
-				}
-				json.Unmarshal(resp.Body(), &result)
-				apiKey = result.Data.Key
+			tempClient := sdk.NewClient(apiURL, "")
+			key, err := tempClient.CreateKey(name)
+			if err == nil {
+				apiKey = key
 				fmt.Printf("🔑 Generated Key: %s\n\n", apiKey)
 			} else {
 				fmt.Println("❌ Failed to generate key. Falling back to manual input.")
 			}
 		}
 
-		// Fallback: manual input if still empty
 		if apiKey == "" {
 			manualPrompt := &survey.Input{
 				Message: "Enter your API Key:",
@@ -66,19 +52,19 @@ func main() {
 		}
 	}
 
+	sdkClient = sdk.NewClient(apiURL, apiKey)
+
 	for {
-		// 2. Main Menu
 		mode := ""
 		prompt := &survey.Select{
 			Message: "☁️  Cloud CLI Control Panel - What would you like to do?",
-			Options: []string{"List Instances", "Launch Instance", "Stop Instance", "View Logs", "View Details", "Exit"},
+			Options: []string{"List Instances", "Launch Instance", "Stop Instance", "Remove Instance", "View Logs", "View Details", "Exit"},
 		}
 		if err := survey.AskOne(prompt, &mode); err != nil {
 			fmt.Println("Bye!")
 			return
 		}
 
-		// 3. Dispatch
 		switch mode {
 		case "List Instances":
 			listInstances()
@@ -86,6 +72,8 @@ func main() {
 			launchInstance()
 		case "Stop Instance":
 			stopInstance()
+		case "Remove Instance":
+			removeInstance()
 		case "View Logs":
 			viewLogs()
 		case "View Details":
@@ -94,45 +82,25 @@ func main() {
 			fmt.Println("👋 See you in the cloud!")
 			return
 		}
-		fmt.Println("") // Spacer
+		fmt.Println("")
 	}
 }
 
-func getClient() *resty.Client {
-	client := resty.New()
-	client.SetHeader("X-API-Key", apiKey)
-	return client
-}
-
 func listInstances() {
-	client := getClient()
-	resp, err := client.R().Get(apiURL + "/instances")
+	instances, err := sdkClient.ListInstances()
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	var result struct {
-		Data []map[string]interface{} `json:"data"`
-	}
-	if err := json.Unmarshal(resp.Body(), &result); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	// Clear screen for better UX
-	fmt.Print("\033[H\033[2J")
-
+	fmt.Print("\033[H\033[2J") // Clear screen
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header([]string{"ID", "NAME", "IMAGE", "STATUS", "ACCESS"})
 
-	for _, inst := range result.Data {
-		id := fmt.Sprintf("%v", inst["id"])
-
+	for _, inst := range instances {
 		access := "-"
-		ports := fmt.Sprintf("%v", inst["ports"])
-		if ports != "" && inst["status"] == "RUNNING" {
-			pList := strings.Split(ports, ",")
+		if inst.Ports != "" && inst.Status == "RUNNING" {
+			pList := strings.Split(inst.Ports, ",")
 			var mappings []string
 			for _, mapping := range pList {
 				parts := strings.Split(mapping, ":")
@@ -144,10 +112,10 @@ func listInstances() {
 		}
 
 		table.Append([]string{
-			id[:8],
-			fmt.Sprintf("%v", inst["name"]),
-			fmt.Sprintf("%v", inst["image"]),
-			fmt.Sprintf("%v", inst["status"]),
+			inst.ID[:8],
+			inst.Name,
+			inst.Image,
+			inst.Status,
 			access,
 		})
 	}
@@ -157,10 +125,8 @@ func listInstances() {
 func launchInstance() {
 	qs := []*survey.Question{
 		{
-			Name: "name",
-			Prompt: &survey.Input{
-				Message: "Instance Name:",
-			},
+			Name:     "name",
+			Prompt:   &survey.Input{Message: "Instance Name:"},
 			Validate: survey.Required,
 		},
 		{
@@ -190,186 +156,119 @@ func launchInstance() {
 		return
 	}
 
-	client := getClient()
-	resp, err := client.R().
-		SetHeader("Content-Type", "application/json").
-		SetBody(map[string]string{
-			"name":  answers.Name,
-			"image": answers.Image,
-			"ports": answers.Ports,
-		}).
-		Post(apiURL + "/instances")
-
-	if err != nil || resp.IsError() {
-		fmt.Printf("❌ Failed: %v %s\n", err, resp.String())
+	inst, err := sdkClient.LaunchInstance(answers.Name, answers.Image, answers.Ports)
+	if err != nil {
+		fmt.Printf("❌ Failed: %v\n", err)
 		return
 	}
 
-	fmt.Printf("✅ Launched %s (%s) successfully!\n", answers.Name, answers.Image)
+	fmt.Printf("✅ Launched %s (%s) successfully!\n", inst.Name, inst.Image)
+}
+
+func selectInstance(message string, statusFilter string) *sdk.Instance {
+	instances, err := sdkClient.ListInstances()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return nil
+	}
+
+	var options []string
+	instMap := make(map[string]sdk.Instance)
+
+	for _, inst := range instances {
+		if statusFilter != "" && inst.Status != statusFilter {
+			continue
+		}
+		display := fmt.Sprintf("%s (%s) [%s]", inst.Name, inst.ID[:8], inst.Status)
+		options = append(options, display)
+		instMap[display] = inst
+	}
+
+	if len(options) == 0 {
+		fmt.Println("⚠️  No matching instances found.")
+		return nil
+	}
+
+	var selected string
+	prompt := &survey.Select{
+		Message: message,
+		Options: options,
+	}
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return nil
+	}
+
+	inst := instMap[selected]
+	return &inst
 }
 
 func stopInstance() {
-	// First fetch list to select from
-	client := getClient()
-	resp, err := client.R().Get(apiURL + "/instances")
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+	inst := selectInstance("Select instance to stop:", "RUNNING")
+	if inst == nil {
 		return
 	}
 
-	var result struct {
-		Data []map[string]interface{} `json:"data"`
-	}
-	json.Unmarshal(resp.Body(), &result)
-
-	var options []string
-	idMap := make(map[string]string) // "Display Name" -> UUID
-
-	for _, inst := range result.Data {
-		if inst["status"] != "RUNNING" {
-			continue
-		}
-		id := fmt.Sprintf("%v", inst["id"])
-		name := fmt.Sprintf("%v", inst["name"])
-		display := fmt.Sprintf("%s (%s)", name, id[:8])
-		options = append(options, display)
-		idMap[display] = id
-	}
-
-	if len(options) == 0 {
-		fmt.Println("⚠️  No running instances to stop.")
+	if err := sdkClient.StopInstance(inst.ID); err != nil {
+		fmt.Printf("❌ Failed to stop: %v\n", err)
 		return
 	}
 
-	var selected string
-	prompt := &survey.Select{
-		Message: "Select instance to stop:",
-		Options: options,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	fmt.Printf("🛑 Stopping %s...\n", inst.Name)
+}
+
+func removeInstance() {
+	inst := selectInstance("Select instance to REMOVE (permanent):", "")
+	if inst == nil {
 		return
 	}
 
-	targetID := idMap[selected]
-	resp, err = client.R().Post(apiURL + "/instances/" + targetID + "/stop")
-	if err != nil || resp.IsError() {
-		fmt.Printf("❌ Failed to stop.\n")
+	if err := sdkClient.TerminateInstance(inst.ID); err != nil {
+		fmt.Printf("❌ Failed to remove: %v\n", err)
 		return
 	}
 
-	fmt.Printf("🛑 Stopping %s...\n", selected)
+	fmt.Printf("🗑️  %s removed successfully.\n", inst.Name)
 }
 
 func viewLogs() {
-	client := getClient()
-	resp, err := client.R().Get(apiURL + "/instances")
+	inst := selectInstance("Select instance to view logs:", "")
+	if inst == nil {
+		return
+	}
+
+	logs, err := sdkClient.GetInstanceLogs(inst.ID)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	var result struct {
-		Data []map[string]interface{} `json:"data"`
-	}
-	json.Unmarshal(resp.Body(), &result)
-
-	var options []string
-	idMap := make(map[string]string)
-
-	for _, inst := range result.Data {
-		id := fmt.Sprintf("%v", inst["id"])
-		name := fmt.Sprintf("%v", inst["name"])
-		display := fmt.Sprintf("%s (%s)", name, id[:8])
-		options = append(options, display)
-		idMap[display] = id
-	}
-
-	if len(options) == 0 {
-		fmt.Println("⚠️  No instances found.")
-		return
-	}
-
-	var selected string
-	prompt := &survey.Select{
-		Message: "Select instance to view logs:",
-		Options: options,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
-		return
-	}
-
-	targetID := idMap[selected]
-	resp, err = client.R().Get(apiURL + "/instances/" + targetID + "/logs")
-	if err != nil || resp.IsError() {
-		fmt.Printf("❌ Failed to fetch logs.\n")
+		fmt.Printf("❌ Failed to fetch logs: %v\n", err)
 		return
 	}
 
 	fmt.Println("📜 --- Logs Start ---")
-	fmt.Print(string(resp.Body()))
+	fmt.Print(logs)
 	fmt.Println("📜 --- Logs End ---")
 }
 
 func showInstance() {
-	client := getClient()
-	resp, err := client.R().Get(apiURL + "/instances")
+	inst := selectInstance("Select instance to view details:", "")
+	if inst == nil {
+		return
+	}
+
+	// Fetch fresh details
+	details, err := sdkClient.GetInstance(inst.ID)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("❌ Failed to fetch details: %v\n", err)
 		return
 	}
-
-	var result struct {
-		Data []map[string]interface{} `json:"data"`
-	}
-	json.Unmarshal(resp.Body(), &result)
-
-	var options []string
-	idMap := make(map[string]string)
-
-	for _, inst := range result.Data {
-		id := fmt.Sprintf("%v", inst["id"])
-		name := fmt.Sprintf("%v", inst["name"])
-		display := fmt.Sprintf("%s (%s)", name, id[:8])
-		options = append(options, display)
-		idMap[display] = id
-	}
-
-	if len(options) == 0 {
-		fmt.Println("⚠️  No instances found.")
-		return
-	}
-
-	var selected string
-	prompt := &survey.Select{
-		Message: "Select instance to view details:",
-		Options: options,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
-		return
-	}
-
-	targetID := idMap[selected]
-	resp, err = client.R().Get(apiURL + "/instances/" + targetID)
-	if err != nil || resp.IsError() {
-		fmt.Printf("❌ Failed to fetch details.\n")
-		return
-	}
-
-	var detailResult struct {
-		Data map[string]interface{} `json:"data"`
-	}
-	json.Unmarshal(resp.Body(), &detailResult)
-	inst := detailResult.Data
 
 	fmt.Printf("\n☁️  Instance Details\n")
 	fmt.Println(strings.Repeat("-", 40))
-	fmt.Printf("%-15s %v\n", "ID:", inst["id"])
-	fmt.Printf("%-15s %v\n", "Name:", inst["name"])
-	fmt.Printf("%-15s %v\n", "Status:", inst["status"])
-	fmt.Printf("%-15s %v\n", "Image:", inst["image"])
-	fmt.Printf("%-15s %v\n", "Ports:", inst["ports"])
-	fmt.Printf("%-15s %v\n", "Created At:", inst["created_at"])
-	fmt.Printf("%-15s %v\n", "Version:", inst["version"])
-	fmt.Printf("%-15s %v\n", "Container ID:", inst["container_id"])
+	fmt.Printf("%-15s %v\n", "ID:", details.ID)
+	fmt.Printf("%-15s %v\n", "Name:", details.Name)
+	fmt.Printf("%-15s %v\n", "Status:", details.Status)
+	fmt.Printf("%-15s %v\n", "Image:", details.Image)
+	fmt.Printf("%-15s %v\n", "Ports:", details.Ports)
+	fmt.Printf("%-15s %v\n", "Created At:", details.CreatedAt)
+	fmt.Printf("%-15s %v\n", "Version:", details.Version)
+	fmt.Printf("%-15s %v\n", "Container ID:", details.ContainerID)
 	fmt.Println(strings.Repeat("-", 40))
 }

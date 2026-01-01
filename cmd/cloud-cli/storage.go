@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -22,34 +23,27 @@ var storageListCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		bucket := args[0]
 		client := getClient()
-		resp, err := client.R().Get(apiURL + "/storage/" + bucket)
+		objects, err := client.ListObjects(bucket)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
 		if outputJSON {
-			fmt.Println(string(resp.Body()))
-			return
-		}
-
-		var result struct {
-			Data []map[string]interface{} `json:"data"`
-		}
-		if err := json.Unmarshal(resp.Body(), &result); err != nil {
-			fmt.Printf("Error parsing response: %v\n", err)
+			data, _ := json.MarshalIndent(objects, "", "  ")
+			fmt.Println(string(data))
 			return
 		}
 
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header([]string{"KEY", "SIZE", "CREATED AT", "ARN"})
 
-		for _, obj := range result.Data {
+		for _, obj := range objects {
 			table.Append([]string{
-				fmt.Sprintf("%v", obj["key"]),
-				fmt.Sprintf("%v", obj["size_bytes"]),
-				fmt.Sprintf("%v", obj["created_at"]),
-				fmt.Sprintf("%v", obj["arn"]),
+				obj.Key,
+				fmt.Sprintf("%d", obj.SizeBytes),
+				obj.CreatedAt.Format(time.RFC3339),
+				obj.ARN,
 			})
 		}
 		table.Render()
@@ -76,17 +70,8 @@ var storageUploadCmd = &cobra.Command{
 		defer f.Close()
 
 		client := getClient()
-		resp, err := client.R().
-			SetBody(f).
-			Put(apiURL + "/storage/" + bucket + "/" + key)
-
-		if err != nil {
+		if err := client.UploadObject(bucket, key, f); err != nil {
 			fmt.Printf("Error: %v\n", err)
-			return
-		}
-
-		if resp.IsError() {
-			fmt.Printf("Failed: %s\n", resp.String())
 			return
 		}
 
@@ -104,20 +89,12 @@ var storageDownloadCmd = &cobra.Command{
 		dest := args[2]
 
 		client := getClient()
-		resp, err := client.R().
-			SetDoNotParseResponse(true).
-			Get(apiURL + "/storage/" + bucket + "/" + key)
-
+		body, err := client.DownloadObject(bucket, key)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
-		defer resp.RawBody().Close()
-
-		if resp.IsError() {
-			fmt.Printf("Failed: Status %d\n", resp.StatusCode())
-			return
-		}
+		defer body.Close()
 
 		out, err := os.Create(dest)
 		if err != nil {
@@ -126,7 +103,7 @@ var storageDownloadCmd = &cobra.Command{
 		}
 		defer out.Close()
 
-		_, err = io.Copy(out, resp.RawBody())
+		_, err = io.Copy(out, body)
 		if err != nil {
 			fmt.Printf("Error writing file: %v\n", err)
 			return
@@ -145,14 +122,8 @@ var storageDeleteCmd = &cobra.Command{
 		key := args[1]
 
 		client := getClient()
-		resp, err := client.R().Delete(apiURL + "/storage/" + bucket + "/" + key)
-		if err != nil {
+		if err := client.DeleteObject(bucket, key); err != nil {
 			fmt.Printf("Error: %v\n", err)
-			return
-		}
-
-		if resp.IsError() {
-			fmt.Printf("Failed: %s\n", resp.String())
 			return
 		}
 

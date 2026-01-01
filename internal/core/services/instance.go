@@ -90,9 +90,9 @@ func (s *InstanceService) parseAndValidatePorts(ports string) ([]string, error) 
 	return portList, nil
 }
 
-func (s *InstanceService) StopInstance(ctx context.Context, id uuid.UUID) error {
-	// 1. Get from DB
-	inst, err := s.repo.GetByID(ctx, id)
+func (s *InstanceService) StopInstance(ctx context.Context, idOrName string) error {
+	// 1. Get from DB (handles both Name and UUID)
+	inst, err := s.GetInstance(ctx, idOrName)
 	if err != nil {
 		return err
 	}
@@ -102,21 +102,13 @@ func (s *InstanceService) StopInstance(ctx context.Context, id uuid.UUID) error 
 	}
 
 	// 2. Call Docker stop
-	// We use the stored ContainerID if available, otherwise fallback to Name (legacy support)
 	target := inst.ContainerID
 	if target == "" {
-		// Try to reconstruct older naming scheme or just fail?
-		// For now let's assumes legacy containers used Name.
-		// But in our new scheme they use miniaws-ID.
-		// Actually, let's look for the container by name if ID is missing.
-		target = inst.Name
-	} else {
-		// StopContainer in adapter currently takes 'name', but Docker API supports ID too.
+		// Fallback to Reconstruction
+		target = fmt.Sprintf("miniaws-%s", inst.ID.String()[:8])
 	}
 
 	if err := s.docker.StopContainer(ctx, target); err != nil {
-		// If we can't stop it, maybe it is already gone or name changed.
-		// Log warning?
 		return errors.Wrap(errors.Internal, "failed to stop container", err)
 	}
 
@@ -161,4 +153,24 @@ func (s *InstanceService) GetInstanceLogs(ctx context.Context, idOrName string) 
 	}
 
 	return string(bytes), nil
+}
+
+func (s *InstanceService) TerminateInstance(ctx context.Context, idOrName string) error {
+	// 1. Get from DB (handles both Name and UUID)
+	inst, err := s.GetInstance(ctx, idOrName)
+	if err != nil {
+		return err
+	}
+
+	// 2. Remove from Docker (force remove handles running containers)
+	if inst.ContainerID != "" {
+		_ = s.docker.RemoveContainer(ctx, inst.ContainerID)
+	} else {
+		// Fallback to Reconstruction for legacy or missing ID
+		dockerName := fmt.Sprintf("miniaws-%s", inst.ID.String()[:8])
+		_ = s.docker.RemoveContainer(ctx, dockerName)
+	}
+
+	// 3. Delete from DB
+	return s.repo.Delete(ctx, inst.ID)
 }
