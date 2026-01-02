@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,23 +18,20 @@ func TestAutoScalingRepo_Integration(t *testing.T) {
 	db := setupDB(t)
 	defer db.Close()
 	repo := NewAutoScalingRepo(db)
-	ctx := context.Background()
+	ctx := setupTestUser(t, db)
+	userID := appcontext.UserIDFromContext(ctx)
 
-	// Cleanup
-	_, _ = db.Exec(ctx, "DELETE FROM scaling_group_instances")
-	_, _ = db.Exec(ctx, "DELETE FROM scaling_policies")
-	_, _ = db.Exec(ctx, "DELETE FROM scaling_groups")
-	_, _ = db.Exec(ctx, "DELETE FROM vpcs")
-	_, _ = db.Exec(ctx, "DELETE FROM instances")
+	cleanDB(t, db)
 
 	vpcID := uuid.New()
-	_, err := db.Exec(ctx, "INSERT INTO vpcs (id, name, network_id, created_at) VALUES ($1, $2, $3, $4)",
-		vpcID, "asg-vpc", "net-asg", time.Now())
+	_, err := db.Exec(context.Background(), "INSERT INTO vpcs (id, user_id, name, network_id, created_at) VALUES ($1, $2, $3, $4, $5)",
+		vpcID, userID, "asg-vpc", "net-asg", time.Now())
 	require.NoError(t, err)
 
 	groupID := uuid.New()
 	group := &domain.ScalingGroup{
 		ID:             groupID,
+		UserID:         userID,
 		Name:           "test-asg",
 		VpcID:          vpcID,
 		Image:          "nginx",

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,15 +18,17 @@ func TestVolumeRepository_Integration(t *testing.T) {
 	db := setupDB(t)
 	defer db.Close()
 	repo := NewVolumeRepository(db)
-	ctx := context.Background()
+	ctx := setupTestUser(t, db)
+	userID := appcontext.UserIDFromContext(ctx)
 
 	// Cleanup
-	_, err := db.Exec(ctx, "DELETE FROM volumes")
+	_, err := db.Exec(context.Background(), "DELETE FROM volumes")
 	require.NoError(t, err)
 
 	volID := uuid.New()
 	vol := &domain.Volume{
 		ID:        volID,
+		UserID:    userID,
 		Name:      "test-vol",
 		SizeGB:    10,
 		Status:    "available",
@@ -57,8 +60,8 @@ func TestVolumeRepository_Integration(t *testing.T) {
 	t.Run("Update and ListByInstanceID", func(t *testing.T) {
 		instID := uuid.New()
 		// Create instance to satisfy foreign key
-		_, err := db.Exec(ctx, "INSERT INTO instances (id, name, image, status, version, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-			instID, "test-inst", "alpine", "running", 1, time.Now(), time.Now())
+		_, err := db.Exec(context.Background(), "INSERT INTO instances (id, user_id, name, image, status, version, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+			instID, userID, "test-inst", "alpine", "running", 1, time.Now(), time.Now())
 		require.NoError(t, err)
 
 		vol.InstanceID = &instID

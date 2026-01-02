@@ -4,49 +4,36 @@ package postgres
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupDB(t *testing.T) *pgxpool.Pool {
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = "postgres://cloud:cloud@localhost:5433/thecloud"
-	}
-
-	ctx := context.Background()
-	db, err := pgxpool.New(ctx, dbURL)
-	require.NoError(t, err)
-
-	err = db.Ping(ctx)
-	if err != nil {
-		t.Skip("Skipping integration test: database not available")
-	}
-
-	return db
-}
-
 func TestInstanceRepository_Integration(t *testing.T) {
 	db := setupDB(t)
 	defer db.Close()
 	repo := NewInstanceRepository(db)
-	ctx := context.Background()
+	ctx := setupTestUser(t, db)
+	userID := appcontext.UserIDFromContext(ctx)
 
 	// Cleanup
-	_, err := db.Exec(ctx, "DELETE FROM instances")
+	// We need to clean up strictly for this user or all?
+	// Easier to just not fail on cleanup or do it carefully.
+	// "DELETE FROM instances" deletes everything. That might collide with other tests running in parallel
+	// but here we are running sequentially usually.
+	_, err := db.Exec(context.Background(), "DELETE FROM instances")
 	require.NoError(t, err)
 
 	t.Run("Create and Get", func(t *testing.T) {
 		id := uuid.New()
 		inst := &domain.Instance{
 			ID:        id,
+			UserID:    userID,
 			Name:      "integration-test-inst",
 			Image:     "alpine",
 			Status:    domain.StatusStarting,

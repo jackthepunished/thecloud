@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,27 +18,29 @@ func TestLBRepository_Integration(t *testing.T) {
 	db := setupDB(t)
 	defer db.Close()
 	repo := NewLBRepository(db)
-	ctx := context.Background()
+	ctx := setupTestUser(t, db)
+	userID := appcontext.UserIDFromContext(ctx)
 
 	// Cleanup
-	_, err := db.Exec(ctx, "DELETE FROM lb_targets")
+	_, err := db.Exec(context.Background(), "DELETE FROM lb_targets")
 	require.NoError(t, err)
-	_, err = db.Exec(ctx, "DELETE FROM load_balancers")
+	_, err = db.Exec(context.Background(), "DELETE FROM load_balancers")
 	require.NoError(t, err)
-	_, err = db.Exec(ctx, "DELETE FROM vpcs")
+	_, err = db.Exec(context.Background(), "DELETE FROM vpcs")
 	require.NoError(t, err)
-	_, err = db.Exec(ctx, "DELETE FROM instances")
+	_, err = db.Exec(context.Background(), "DELETE FROM instances")
 	require.NoError(t, err)
 
 	vpcID := uuid.New()
 	// Create VPC
-	_, err = db.Exec(ctx, "INSERT INTO vpcs (id, name, network_id, created_at) VALUES ($1, $2, $3, $4)",
-		vpcID, "lb-vpc", "net-lb", time.Now())
+	_, err = db.Exec(context.Background(), "INSERT INTO vpcs (id, user_id, name, network_id, created_at) VALUES ($1, $2, $3, $4, $5)",
+		vpcID, userID, "lb-vpc", "net-lb", time.Now())
 	require.NoError(t, err)
 
 	lbID := uuid.New()
 	lb := &domain.LoadBalancer{
 		ID:             lbID,
+		UserID:         userID,
 		Name:           "test-lb",
 		VpcID:          vpcID,
 		Port:           80,

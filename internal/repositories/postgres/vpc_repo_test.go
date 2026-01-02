@@ -3,11 +3,11 @@
 package postgres
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,15 +17,16 @@ func TestVpcRepository_Integration(t *testing.T) {
 	db := setupDB(t)
 	defer db.Close()
 	repo := NewVpcRepository(db)
-	ctx := context.Background()
+	ctx := setupTestUser(t, db)
+	userID := appcontext.UserIDFromContext(ctx)
 
 	// Cleanup
-	_, err := db.Exec(ctx, "DELETE FROM vpcs")
-	require.NoError(t, err)
+	cleanDB(t, db)
 
 	vpcID := uuid.New()
 	vpc := &domain.VPC{
 		ID:        vpcID,
+		UserID:    userID,
 		Name:      "test-vpc",
 		NetworkID: "net-123",
 		CreatedAt: time.Now(),
