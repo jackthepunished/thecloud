@@ -11,9 +11,13 @@ Welcome to the **Mini AWS** operational manual. This guide will help you set up 
   ```bash
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   ```
-- **Go (Golang)**: Version 1.21 or higher.
+- **Go (Golang)**: Version 1.25 or higher.
   ```bash
   brew install go
+  ```
+- **Node.js & npm**: Version 20 or higher (for the Console).
+  ```bash
+  brew install node
   ```
 - **Docker Desktop**: [Download for Mac](https://www.docker.com/products/docker-desktop/).
   - *Note*: Ensure "Use Docker Compose V2" is enabled in settings.
@@ -54,6 +58,7 @@ The `Makefile` works natively on macOS.
 
 ### 1. Prerequisites
 - **Go (Golang)**: [Download Installer](https://go.dev/dl/).
+- **Node.js & npm**: [Download Installer](https://nodejs.org/).
 - **Docker Desktop**: [Download for Windows](https://www.docker.com/products/docker-desktop).
   - *Critical*: Enable **WSL 2** (Windows Subsystem for Linux) backend for best performance.
 - **Git Bash** (Recommended) or PowerShell.

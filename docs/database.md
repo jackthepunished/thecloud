@@ -50,12 +50,22 @@ CREATE TABLE objects (
 ```
 
 ## Migration Strategy
-- **Tool**: Manual SQL (golang-migrate planned)
+- **Mechanism**: Embedded Go Filesystem (`embed`)
 - **Location**: `internal/repositories/postgres/migrations/`
-- **Rules**:
-  1. Never modify committed migrations
-  2. Run in transactions
-  3. Use `IF NOT EXISTS` for idempotency
+- **Execution**: Migrations run automatically on API startup.
+- **CI/CD / Manual**: Use the `-migrate-only` flag to run migrations and exit:
+  ```bash
+  go run cmd/compute-api/main.go -migrate-only
+  ```
+
+## Connection Details
+The default connection string for local development is:
+`postgres://cloud:cloud@localhost:5433/miniaws`
+
+Note: The port was changed from `5432` to **`5433`** to avoid conflicts with system-level PostgreSQL installations.
+
+## Schema Integrity
+Every migration includes a `.up.sql` and a `.down.sql` file. We maintain a strict parity between them to ensure local environments can be reset cleanly for testing.
 
 ## Repository Pattern
 We use interfaces to decouple database from business logic:

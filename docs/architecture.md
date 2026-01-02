@@ -9,10 +9,12 @@ Mini AWS is built using **Hexagonal Architecture** (also known as Ports and Adap
 graph TB
     User((User))
     CLI((CLI))
+    Console[Next.js Console]
 
     subgraph "Interface Adapters (Entry)"
         Handler[HTTP Handlers\nGin Framework]
         Cmd[Cobra Commands]
+        WS[WebSocket Hub]
     end
 
     subgraph "Core Domain"
@@ -25,9 +27,12 @@ graph TB
         RepoDocker[Docker Adapter]
     end
 
-    User --> Handler
+    User --> Console
+    Console --> Handler
+    Console --> WS
     CLI --> Handler
     Handler --> Service
+    WS --> Service
     Service --> Domain
     Service --> RepoPG
     Service --> RepoDocker

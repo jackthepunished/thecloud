@@ -9,14 +9,15 @@ The codebase follows the layout:
 ```text
 internal/
 ├── core/
-│   ├── domain/       # Pure data structs (Instance)
-│   ├── ports/        # Interface definitions (InstanceRepository, InstanceService)
-│   └── services/     # Business logic implementation
-├── handlers/         # HTTP Layer (Gin Handlers)
-├── repositories/     # Database & External Adapters
-│   ├── docker/       # Docker Client implementation
-│   └── postgres/     # (Proposed) Postgres implementation
-└── platform/         # Cross-cutting concerns (Logger, Config)
+│   ├── domain/       # Pure data structs (Instance, VPC, Event)
+│   ├── ports/        # Interface definitions
+│   └── services/     # Business logic (Instance, Dashboard, Event)
+├── handlers/         # HTTP Handlers (REST)
+│   └── ws/           # Real-time WebSocket Hub & Streaming
+├── repositories/     # Adapters
+│   ├── docker/       # Docker SDK (Compute, Networks, Volumes)
+│   └── postgres/     # PostgreSQL (pgx)
+└── platform/         # Metrics, Logger, Database Setup
 ```
 
 ## API Design Standards
