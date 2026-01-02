@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/stretchr/testify/assert"
@@ -145,6 +146,30 @@ func TestLBService_Create(t *testing.T) {
 		assert.True(t, errors.Is(err, errors.NotFound))
 		vpcRepo.AssertExpectations(t)
 	})
+}
+
+func TestLBService_PropagatesUserID(t *testing.T) {
+	lbRepo := new(mockLBRepo)
+	vpcRepo := new(mockVpcRepo)
+	instRepo := new(mockInstanceRepo)
+	svc := NewLBService(lbRepo, vpcRepo, instRepo)
+
+	expectedUserID := uuid.New()
+	ctx := appcontext.WithUserID(context.Background(), expectedUserID)
+	vpcID := uuid.New()
+	name := "test-lb-user"
+
+	lbRepo.On("GetByIdempotencyKey", ctx, "key3").Return(nil, errors.New(errors.NotFound, "not found")).Once()
+	vpcRepo.On("GetByID", ctx, vpcID).Return(&domain.VPC{ID: vpcID}, nil).Once()
+	lbRepo.On("Create", ctx, mock.MatchedBy(func(lb *domain.LoadBalancer) bool {
+		return lb.UserID == expectedUserID
+	})).Return(nil).Once()
+
+	lb, err := svc.Create(ctx, name, vpcID, 80, "round-robin", "key3")
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedUserID, lb.UserID)
+	lbRepo.AssertExpectations(t)
 }
 
 func TestLBService_AddTarget(t *testing.T) {
