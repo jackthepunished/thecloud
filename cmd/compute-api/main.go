@@ -239,7 +239,7 @@ func main() {
 
 	// Auto-Scaling Routes (Protected)
 	asgRepo := postgres.NewAutoScalingRepo(db)
-	asgSvc := services.NewAutoScalingService(asgRepo, vpcRepo, instanceSvc)
+	asgSvc := services.NewAutoScalingService(asgRepo, vpcRepo)
 	asgHandler := httphandlers.NewAutoScalingHandler(asgSvc)
 	asgWorker := services.NewAutoScalingWorker(asgRepo, instanceSvc, lbSvc, eventSvc, ports.RealClock{})
 

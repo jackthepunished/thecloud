@@ -12,16 +12,14 @@ import (
 )
 
 type AutoScalingService struct {
-	repo        ports.AutoScalingRepository
-	vpcRepo     ports.VpcRepository
-	instanceSvc ports.InstanceService
+	repo    ports.AutoScalingRepository
+	vpcRepo ports.VpcRepository
 }
 
-func NewAutoScalingService(repo ports.AutoScalingRepository, vpcRepo ports.VpcRepository, instanceSvc ports.InstanceService) *AutoScalingService {
+func NewAutoScalingService(repo ports.AutoScalingRepository, vpcRepo ports.VpcRepository) *AutoScalingService {
 	return &AutoScalingService{
-		repo:        repo,
-		vpcRepo:     vpcRepo,
-		instanceSvc: instanceSvc,
+		repo:    repo,
+		vpcRepo: vpcRepo,
 	}
 }
 

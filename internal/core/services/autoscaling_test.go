@@ -137,8 +137,7 @@ func (m *MockInstanceService) TerminateInstance(ctx context.Context, idOrName st
 func TestCreateGroup_SecurityLimits(t *testing.T) {
 	mockRepo := new(MockAutoScalingRepo)
 	mockVpcRepo := new(MockVpcRepo)
-	mockInstSvc := new(MockInstanceService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, mockInstSvc)
+	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo)
 	ctx := context.Background()
 	vpcID := uuid.New()
 
