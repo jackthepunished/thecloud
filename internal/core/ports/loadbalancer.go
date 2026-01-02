@@ -32,3 +32,9 @@ type LBService interface {
 	RemoveTarget(ctx context.Context, lbID, instanceID uuid.UUID) error
 	ListTargets(ctx context.Context, lbID uuid.UUID) ([]*domain.LBTarget, error)
 }
+
+type LBProxyAdapter interface {
+	DeployProxy(ctx context.Context, lb *domain.LoadBalancer, targets []*domain.LBTarget) (string, error)
+	RemoveProxy(ctx context.Context, lbID uuid.UUID) error
+	UpdateProxyConfig(ctx context.Context, lb *domain.LoadBalancer, targets []*domain.LBTarget) error
+}

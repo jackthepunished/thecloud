@@ -1,0 +1,128 @@
+package services
+
+import (
+	"context"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/poyraz/cloud/internal/core/domain"
+	"github.com/poyraz/cloud/internal/core/ports"
+	"github.com/poyraz/cloud/internal/errors"
+)
+
+type LBService struct {
+	lbRepo       ports.LBRepository
+	vpcRepo      ports.VpcRepository
+	instanceRepo ports.InstanceRepository
+}
+
+func NewLBService(lbRepo ports.LBRepository, vpcRepo ports.VpcRepository, instanceRepo ports.InstanceRepository) *LBService {
+	return &LBService{
+		lbRepo:       lbRepo,
+		vpcRepo:      vpcRepo,
+		instanceRepo: instanceRepo,
+	}
+}
+
+func (s *LBService) Create(ctx context.Context, name string, vpcID uuid.UUID, port int, algo string, idempotencyKey string) (*domain.LoadBalancer, error) {
+	// Check if already created via idempotency key
+	if idempotencyKey != "" {
+		existing, err := s.lbRepo.GetByIdempotencyKey(ctx, idempotencyKey)
+		if err == nil {
+			return existing, nil
+		}
+	}
+
+	// Validate VPC exists
+	_, err := s.vpcRepo.GetByID(ctx, vpcID)
+	if err != nil {
+		return nil, errors.Wrap(errors.NotFound, "VPC not found", err)
+	}
+
+	// Set default algorithm
+	if algo == "" {
+		algo = "round-robin"
+	}
+
+	lb := &domain.LoadBalancer{
+		ID:             uuid.New(),
+		IdempotencyKey: idempotencyKey,
+		Name:           name,
+		VpcID:          vpcID,
+		Port:           port,
+		Algorithm:      algo,
+		Status:         domain.LBStatusCreating,
+		Version:        1,
+		CreatedAt:      time.Now(),
+	}
+
+	if err := s.lbRepo.Create(ctx, lb); err != nil {
+		return nil, err
+	}
+
+	return lb, nil
+}
+
+func (s *LBService) Get(ctx context.Context, id uuid.UUID) (*domain.LoadBalancer, error) {
+	return s.lbRepo.GetByID(ctx, id)
+}
+
+func (s *LBService) List(ctx context.Context) ([]*domain.LoadBalancer, error) {
+	return s.lbRepo.List(ctx)
+}
+
+func (s *LBService) Delete(ctx context.Context, id uuid.UUID) error {
+	// Mark as deleted first or just delete?
+	// Plan says "DRAINING | DELETED". For now let's just delete or mark DELETED.
+	// Since we are async, maybe mark as DELETED and let worker cleanup?
+	// For simplicity, let's mark as DELETED.
+	lb, err := s.lbRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	lb.Status = domain.LBStatusDeleted
+	return s.lbRepo.Update(ctx, lb)
+}
+
+func (s *LBService) AddTarget(ctx context.Context, lbID, instanceID uuid.UUID, port int, weight int) error {
+	// Get LB
+	lb, err := s.lbRepo.GetByID(ctx, lbID)
+	if err != nil {
+		return err
+	}
+
+	// Get Instance
+	inst, err := s.instanceRepo.GetByID(ctx, instanceID)
+	if err != nil {
+		return errors.Wrap(errors.NotFound, "target instance not found", err)
+	}
+
+	// Validate cross-VPC
+	if inst.VpcID == nil || *inst.VpcID != lb.VpcID {
+		return errors.ErrLBCrossVPC
+	}
+
+	if weight == 0 {
+		weight = 1
+	}
+
+	target := &domain.LBTarget{
+		ID:         uuid.New(),
+		LBID:       lbID,
+		InstanceID: instanceID,
+		Port:       port,
+		Weight:     weight,
+		Health:     "unknown",
+	}
+
+	return s.lbRepo.AddTarget(ctx, target)
+}
+
+func (s *LBService) RemoveTarget(ctx context.Context, lbID, instanceID uuid.UUID) error {
+	return s.lbRepo.RemoveTarget(ctx, lbID, instanceID)
+}
+
+func (s *LBService) ListTargets(ctx context.Context, lbID uuid.UUID) ([]*domain.LBTarget, error) {
+	return s.lbRepo.ListTargets(ctx, lbID)
+}
