@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
@@ -61,6 +62,7 @@ func (s *AutoScalingService) CreateGroup(ctx context.Context, name string, vpcID
 
 	group := &domain.ScalingGroup{
 		ID:             uuid.New(),
+		UserID:         appcontext.UserIDFromContext(ctx),
 		IdempotencyKey: idempotencyKey,
 		Name:           name,
 		VpcID:          vpcID,

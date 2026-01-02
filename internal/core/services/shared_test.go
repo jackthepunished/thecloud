@@ -37,6 +37,13 @@ func (m *MockAutoScalingRepo) ListGroups(ctx context.Context) ([]*domain.Scaling
 	}
 	return args.Get(0).([]*domain.ScalingGroup), args.Error(1)
 }
+func (m *MockAutoScalingRepo) ListAllGroups(ctx context.Context) ([]*domain.ScalingGroup, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.ScalingGroup), args.Error(1)
+}
 func (m *MockAutoScalingRepo) CountGroupsByVPC(ctx context.Context, vpcID uuid.UUID) (int, error) {
 	args := m.Called(ctx, vpcID)
 	return args.Int(0), args.Error(1)

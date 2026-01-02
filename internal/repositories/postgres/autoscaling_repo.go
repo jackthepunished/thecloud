@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	errs "github.com/poyrazk/thecloud/internal/errors"
 )
@@ -25,9 +26,9 @@ func NewAutoScalingRepo(db *pgxpool.Pool) *AutoScalingRepo {
 func (r *AutoScalingRepo) CreateGroup(ctx context.Context, group *domain.ScalingGroup) error {
 	query := `
 		INSERT INTO scaling_groups (
-			id, idempotency_key, name, vpc_id, load_balancer_id, image, ports,
+			id, user_id, idempotency_key, name, vpc_id, load_balancer_id, image, ports,
 			min_instances, max_instances, desired_count, current_count, status, version, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 	var idempotencyKey interface{}
 	if group.IdempotencyKey != "" {
@@ -35,7 +36,7 @@ func (r *AutoScalingRepo) CreateGroup(ctx context.Context, group *domain.Scaling
 	}
 
 	_, err := r.db.Exec(ctx, query,
-		group.ID, idempotencyKey, group.Name, group.VpcID, group.LoadBalancerID,
+		group.ID, group.UserID, idempotencyKey, group.Name, group.VpcID, group.LoadBalancerID,
 		group.Image, group.Ports, group.MinInstances, group.MaxInstances,
 		group.DesiredCount, group.CurrentCount, group.Status, group.Version,
 		group.CreatedAt, group.UpdatedAt,
@@ -44,18 +45,19 @@ func (r *AutoScalingRepo) CreateGroup(ctx context.Context, group *domain.Scaling
 }
 
 func (r *AutoScalingRepo) GetGroupByID(ctx context.Context, id uuid.UUID) (*domain.ScalingGroup, error) {
+	userID := appcontext.UserIDFromContext(ctx)
 	query := `
-		SELECT id, idempotency_key, name, vpc_id, load_balancer_id, image, ports,
+		SELECT id, user_id, idempotency_key, name, vpc_id, load_balancer_id, image, ports,
 			   min_instances, max_instances, desired_count, current_count, status, version, created_at, updated_at
-		FROM scaling_groups WHERE id = $1
+		FROM scaling_groups WHERE id = $1 AND user_id = $2
 	`
 	var g domain.ScalingGroup
 	var lbID *uuid.UUID
 	var ports sql.NullString
 	var idk sql.NullString
 
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&g.ID, &idk, &g.Name, &g.VpcID, &lbID, &g.Image, &ports,
+	err := r.db.QueryRow(ctx, query, id, userID).Scan(
+		&g.ID, &g.UserID, &idk, &g.Name, &g.VpcID, &lbID, &g.Image, &ports,
 		&g.MinInstances, &g.MaxInstances, &g.DesiredCount, &g.CurrentCount,
 		&g.Status, &g.Version, &g.CreatedAt, &g.UpdatedAt,
 	)
@@ -76,18 +78,19 @@ func (r *AutoScalingRepo) GetGroupByID(ctx context.Context, id uuid.UUID) (*doma
 }
 
 func (r *AutoScalingRepo) GetGroupByIdempotencyKey(ctx context.Context, key string) (*domain.ScalingGroup, error) {
+	userID := appcontext.UserIDFromContext(ctx)
 	query := `
-		SELECT id, idempotency_key, name, vpc_id, load_balancer_id, image, ports,
+		SELECT id, user_id, idempotency_key, name, vpc_id, load_balancer_id, image, ports,
 			   min_instances, max_instances, desired_count, current_count, status, version, created_at, updated_at
-		FROM scaling_groups WHERE idempotency_key = $1
+		FROM scaling_groups WHERE idempotency_key = $1 AND user_id = $2
 	`
 	var g domain.ScalingGroup
 	var lbID *uuid.UUID
 	var ports sql.NullString
 	var idk sql.NullString // Should match key
 
-	err := r.db.QueryRow(ctx, query, key).Scan(
-		&g.ID, &idk, &g.Name, &g.VpcID, &lbID, &g.Image, &ports,
+	err := r.db.QueryRow(ctx, query, key, userID).Scan(
+		&g.ID, &g.UserID, &idk, &g.Name, &g.VpcID, &lbID, &g.Image, &ports,
 		&g.MinInstances, &g.MaxInstances, &g.DesiredCount, &g.CurrentCount,
 		&g.Status, &g.Version, &g.CreatedAt, &g.UpdatedAt,
 	)
@@ -108,8 +111,48 @@ func (r *AutoScalingRepo) GetGroupByIdempotencyKey(ctx context.Context, key stri
 }
 
 func (r *AutoScalingRepo) ListGroups(ctx context.Context) ([]*domain.ScalingGroup, error) {
+	userID := appcontext.UserIDFromContext(ctx)
 	query := `
-		SELECT id, idempotency_key, name, vpc_id, load_balancer_id, image, ports,
+		SELECT id, user_id, idempotency_key, name, vpc_id, load_balancer_id, image, ports,
+			   min_instances, max_instances, desired_count, current_count, status, version, created_at, updated_at
+		FROM scaling_groups
+		WHERE user_id = $1
+	`
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var groups []*domain.ScalingGroup
+	for rows.Next() {
+		var g domain.ScalingGroup
+		var lbID *uuid.UUID
+		var ports sql.NullString
+		var idk sql.NullString
+
+		if err := rows.Scan(
+			&g.ID, &g.UserID, &idk, &g.Name, &g.VpcID, &lbID, &g.Image, &ports,
+			&g.MinInstances, &g.MaxInstances, &g.DesiredCount, &g.CurrentCount,
+			&g.Status, &g.Version, &g.CreatedAt, &g.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		g.LoadBalancerID = lbID
+		if ports.Valid {
+			g.Ports = ports.String
+		}
+		if idk.Valid {
+			g.IdempotencyKey = idk.String
+		}
+		groups = append(groups, &g)
+	}
+	return groups, nil
+}
+
+func (r *AutoScalingRepo) ListAllGroups(ctx context.Context) ([]*domain.ScalingGroup, error) {
+	query := `
+		SELECT id, user_id, idempotency_key, name, vpc_id, load_balancer_id, image, ports,
 			   min_instances, max_instances, desired_count, current_count, status, version, created_at, updated_at
 		FROM scaling_groups
 	`
@@ -127,7 +170,7 @@ func (r *AutoScalingRepo) ListGroups(ctx context.Context) ([]*domain.ScalingGrou
 		var idk sql.NullString
 
 		if err := rows.Scan(
-			&g.ID, &idk, &g.Name, &g.VpcID, &lbID, &g.Image, &ports,
+			&g.ID, &g.UserID, &idk, &g.Name, &g.VpcID, &lbID, &g.Image, &ports,
 			&g.MinInstances, &g.MaxInstances, &g.DesiredCount, &g.CurrentCount,
 			&g.Status, &g.Version, &g.CreatedAt, &g.UpdatedAt,
 		); err != nil {
@@ -146,8 +189,9 @@ func (r *AutoScalingRepo) ListGroups(ctx context.Context) ([]*domain.ScalingGrou
 }
 
 func (r *AutoScalingRepo) CountGroupsByVPC(ctx context.Context, vpcID uuid.UUID) (int, error) {
+	userID := appcontext.UserIDFromContext(ctx)
 	var count int
-	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM scaling_groups WHERE vpc_id = $1", vpcID).Scan(&count)
+	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM scaling_groups WHERE vpc_id = $1 AND user_id = $2", vpcID, userID).Scan(&count)
 	return count, err
 }
 
@@ -158,19 +202,20 @@ func (r *AutoScalingRepo) UpdateGroup(ctx context.Context, group *domain.Scaling
 			min_instances = $4, max_instances = $5,
 			failure_count = $6, last_failure_at = $7,
 			version = version + 1, updated_at = NOW()
-		WHERE id = $8
+		WHERE id = $8 AND user_id = $9
 	`
 	_, err := r.db.Exec(ctx, query,
 		group.DesiredCount, group.CurrentCount, group.Status,
 		group.MinInstances, group.MaxInstances,
 		group.FailureCount, group.LastFailureAt,
-		group.ID,
+		group.ID, group.UserID,
 	)
 	return err
 }
 
 func (r *AutoScalingRepo) DeleteGroup(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.Exec(ctx, "DELETE FROM scaling_groups WHERE id = $1", id)
+	userID := appcontext.UserIDFromContext(ctx)
+	_, err := r.db.Exec(ctx, "DELETE FROM scaling_groups WHERE id = $1 AND user_id = $2", id, userID)
 	return err
 }
 

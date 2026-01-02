@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/platform"
@@ -66,7 +67,7 @@ func (w *AutoScalingWorker) Run(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 func (w *AutoScalingWorker) Evaluate(ctx context.Context) {
-	groups, err := w.repo.ListGroups(ctx)
+	groups, err := w.repo.ListAllGroups(ctx)
 	if err != nil {
 		log.Printf("AutoScaling: failed to list groups: %v", err)
 		return
@@ -90,8 +91,11 @@ func (w *AutoScalingWorker) Evaluate(ctx context.Context) {
 	}
 
 	for _, group := range groups {
+		// Wrap context with group's UserID for scoped service calls
+		gCtx := appcontext.WithUserID(ctx, group.UserID)
+
 		if group.Status == domain.ScalingGroupStatusDeleting {
-			w.cleanupGroup(ctx, group, instancesByGroup[group.ID])
+			w.cleanupGroup(gCtx, group, instancesByGroup[group.ID])
 			continue
 		}
 
@@ -101,13 +105,13 @@ func (w *AutoScalingWorker) Evaluate(ctx context.Context) {
 		if len(instances) != group.CurrentCount {
 			// Reconciliation: update group count if mismatched
 			group.CurrentCount = len(instances)
-			w.repo.UpdateGroup(ctx, group)
+			w.repo.UpdateGroup(gCtx, group)
 		}
 
 		platform.AutoScalingCurrentInstances.WithLabelValues(group.ID.String()).Set(float64(group.CurrentCount))
 
-		w.reconcileInstances(ctx, group, instances)
-		w.evaluatePolicies(ctx, group, instances, policiesByGroup[group.ID])
+		w.reconcileInstances(gCtx, group, instances)
+		w.evaluatePolicies(gCtx, group, instances, policiesByGroup[group.ID])
 	}
 }
 

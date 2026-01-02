@@ -14,6 +14,7 @@ type AutoScalingRepository interface {
 	GetGroupByID(ctx context.Context, id uuid.UUID) (*domain.ScalingGroup, error)
 	GetGroupByIdempotencyKey(ctx context.Context, key string) (*domain.ScalingGroup, error)
 	ListGroups(ctx context.Context) ([]*domain.ScalingGroup, error)
+	ListAllGroups(ctx context.Context) ([]*domain.ScalingGroup, error)
 	CountGroupsByVPC(ctx context.Context, vpcID uuid.UUID) (int, error)
 	UpdateGroup(ctx context.Context, group *domain.ScalingGroup) error
 	DeleteGroup(ctx context.Context, id uuid.UUID) error
