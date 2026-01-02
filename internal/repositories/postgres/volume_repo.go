@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 )
 
@@ -17,16 +18,17 @@ func NewVolumeRepository(db *pgxpool.Pool) *VolumeRepository {
 }
 
 func (r *VolumeRepository) Create(ctx context.Context, v *domain.Volume) error {
-	query := `INSERT INTO volumes (id, name, size_gb, status, instance_id, mount_path, created_at, updated_at) 
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-	_, err := r.db.Exec(ctx, query, v.ID, v.Name, v.SizeGB, v.Status, v.InstanceID, v.MountPath, v.CreatedAt, v.UpdatedAt)
+	query := `INSERT INTO volumes (id, user_id, name, size_gb, status, instance_id, mount_path, created_at, updated_at) 
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	_, err := r.db.Exec(ctx, query, v.ID, v.UserID, v.Name, v.SizeGB, v.Status, v.InstanceID, v.MountPath, v.CreatedAt, v.UpdatedAt)
 	return err
 }
 
 func (r *VolumeRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Volume, error) {
-	query := `SELECT id, name, size_gb, status, instance_id, mount_path, created_at, updated_at FROM volumes WHERE id = $1`
+	userID := appcontext.UserIDFromContext(ctx)
+	query := `SELECT id, user_id, name, size_gb, status, instance_id, mount_path, created_at, updated_at FROM volumes WHERE id = $1 AND user_id = $2`
 	v := &domain.Volume{}
-	err := r.db.QueryRow(ctx, query, id).Scan(&v.ID, &v.Name, &v.SizeGB, &v.Status, &v.InstanceID, &v.MountPath, &v.CreatedAt, &v.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, id, userID).Scan(&v.ID, &v.UserID, &v.Name, &v.SizeGB, &v.Status, &v.InstanceID, &v.MountPath, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -34,9 +36,10 @@ func (r *VolumeRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.V
 }
 
 func (r *VolumeRepository) GetByName(ctx context.Context, name string) (*domain.Volume, error) {
-	query := `SELECT id, name, size_gb, status, instance_id, mount_path, created_at, updated_at FROM volumes WHERE name = $1`
+	userID := appcontext.UserIDFromContext(ctx)
+	query := `SELECT id, user_id, name, size_gb, status, instance_id, mount_path, created_at, updated_at FROM volumes WHERE name = $1 AND user_id = $2`
 	v := &domain.Volume{}
-	err := r.db.QueryRow(ctx, query, name).Scan(&v.ID, &v.Name, &v.SizeGB, &v.Status, &v.InstanceID, &v.MountPath, &v.CreatedAt, &v.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, name, userID).Scan(&v.ID, &v.UserID, &v.Name, &v.SizeGB, &v.Status, &v.InstanceID, &v.MountPath, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +47,9 @@ func (r *VolumeRepository) GetByName(ctx context.Context, name string) (*domain.
 }
 
 func (r *VolumeRepository) List(ctx context.Context) ([]*domain.Volume, error) {
-	query := `SELECT id, name, size_gb, status, instance_id, mount_path, created_at, updated_at FROM volumes ORDER BY created_at DESC`
-	rows, err := r.db.Query(ctx, query)
+	userID := appcontext.UserIDFromContext(ctx)
+	query := `SELECT id, user_id, name, size_gb, status, instance_id, mount_path, created_at, updated_at FROM volumes WHERE user_id = $1 ORDER BY created_at DESC`
+	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +58,7 @@ func (r *VolumeRepository) List(ctx context.Context) ([]*domain.Volume, error) {
 	var volumes []*domain.Volume
 	for rows.Next() {
 		v := &domain.Volume{}
-		if err := rows.Scan(&v.ID, &v.Name, &v.SizeGB, &v.Status, &v.InstanceID, &v.MountPath, &v.CreatedAt, &v.UpdatedAt); err != nil {
+		if err := rows.Scan(&v.ID, &v.UserID, &v.Name, &v.SizeGB, &v.Status, &v.InstanceID, &v.MountPath, &v.CreatedAt, &v.UpdatedAt); err != nil {
 			return nil, err
 		}
 		volumes = append(volumes, v)
@@ -63,8 +67,9 @@ func (r *VolumeRepository) List(ctx context.Context) ([]*domain.Volume, error) {
 }
 
 func (r *VolumeRepository) ListByInstanceID(ctx context.Context, instanceID uuid.UUID) ([]*domain.Volume, error) {
-	query := `SELECT id, name, size_gb, status, instance_id, mount_path, created_at, updated_at FROM volumes WHERE instance_id = $1`
-	rows, err := r.db.Query(ctx, query, instanceID)
+	userID := appcontext.UserIDFromContext(ctx)
+	query := `SELECT id, user_id, name, size_gb, status, instance_id, mount_path, created_at, updated_at FROM volumes WHERE instance_id = $1 AND user_id = $2`
+	rows, err := r.db.Query(ctx, query, instanceID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +78,7 @@ func (r *VolumeRepository) ListByInstanceID(ctx context.Context, instanceID uuid
 	var volumes []*domain.Volume
 	for rows.Next() {
 		v := &domain.Volume{}
-		if err := rows.Scan(&v.ID, &v.Name, &v.SizeGB, &v.Status, &v.InstanceID, &v.MountPath, &v.CreatedAt, &v.UpdatedAt); err != nil {
+		if err := rows.Scan(&v.ID, &v.UserID, &v.Name, &v.SizeGB, &v.Status, &v.InstanceID, &v.MountPath, &v.CreatedAt, &v.UpdatedAt); err != nil {
 			return nil, err
 		}
 		volumes = append(volumes, v)
@@ -82,13 +87,14 @@ func (r *VolumeRepository) ListByInstanceID(ctx context.Context, instanceID uuid
 }
 
 func (r *VolumeRepository) Update(ctx context.Context, v *domain.Volume) error {
-	query := `UPDATE volumes SET status = $1, instance_id = $2, mount_path = $3, updated_at = $4 WHERE id = $5`
-	_, err := r.db.Exec(ctx, query, v.Status, v.InstanceID, v.MountPath, v.UpdatedAt, v.ID)
+	query := `UPDATE volumes SET status = $1, instance_id = $2, mount_path = $3, updated_at = $4 WHERE id = $5 AND user_id = $6`
+	_, err := r.db.Exec(ctx, query, v.Status, v.InstanceID, v.MountPath, v.UpdatedAt, v.ID, v.UserID)
 	return err
 }
 
 func (r *VolumeRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM volumes WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
+	userID := appcontext.UserIDFromContext(ctx)
+	query := `DELETE FROM volumes WHERE id = $1 AND user_id = $2`
+	_, err := r.db.Exec(ctx, query, id, userID)
 	return err
 }

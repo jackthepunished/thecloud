@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
@@ -31,6 +32,7 @@ func (s *VolumeService) CreateVolume(ctx context.Context, name string, sizeGB in
 	// 1. Create domain entity
 	vol := &domain.Volume{
 		ID:        uuid.New(),
+		UserID:    appcontext.UserIDFromContext(ctx),
 		Name:      name,
 		SizeGB:    sizeGB,
 		Status:    domain.VolumeStatusAvailable,
