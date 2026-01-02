@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/errors"
 )
@@ -20,11 +21,11 @@ func NewLBRepository(db *pgxpool.Pool) *LBRepository {
 
 func (r *LBRepository) Create(ctx context.Context, lb *domain.LoadBalancer) error {
 	query := `
-		INSERT INTO load_balancers (id, idempotency_key, name, vpc_id, port, algorithm, status, version, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO load_balancers (id, user_id, idempotency_key, name, vpc_id, port, algorithm, status, version, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	_, err := r.db.Exec(ctx, query,
-		lb.ID, lb.IdempotencyKey, lb.Name, lb.VpcID, lb.Port, lb.Algorithm, lb.Status, lb.Version, lb.CreatedAt,
+		lb.ID, lb.UserID, lb.IdempotencyKey, lb.Name, lb.VpcID, lb.Port, lb.Algorithm, lb.Status, lb.Version, lb.CreatedAt,
 	)
 	if err != nil {
 		// Check for unique constraint violation on idempotency_key
@@ -34,14 +35,15 @@ func (r *LBRepository) Create(ctx context.Context, lb *domain.LoadBalancer) erro
 }
 
 func (r *LBRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.LoadBalancer, error) {
+	userID := appcontext.UserIDFromContext(ctx)
 	query := `
-		SELECT id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, status, version, created_at
+		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, status, version, created_at
 		FROM load_balancers
-		WHERE id = $1
+		WHERE id = $1 AND user_id = $2
 	`
 	var lb domain.LoadBalancer
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&lb.ID, &lb.IdempotencyKey, &lb.Name, &lb.VpcID, &lb.Port, &lb.Algorithm, &lb.Status, &lb.Version, &lb.CreatedAt,
+	err := r.db.QueryRow(ctx, query, id, userID).Scan(
+		&lb.ID, &lb.UserID, &lb.IdempotencyKey, &lb.Name, &lb.VpcID, &lb.Port, &lb.Algorithm, &lb.Status, &lb.Version, &lb.CreatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -56,14 +58,15 @@ func (r *LBRepository) GetByIdempotencyKey(ctx context.Context, key string) (*do
 	if key == "" {
 		return nil, errors.New(errors.NotFound, "idempotency key empty")
 	}
+	userID := appcontext.UserIDFromContext(ctx)
 	query := `
-		SELECT id, idempotency_key, name, vpc_id, port, algorithm, status, version, created_at
+		SELECT id, user_id, idempotency_key, name, vpc_id, port, algorithm, status, version, created_at
 		FROM load_balancers
-		WHERE idempotency_key = $1
+		WHERE idempotency_key = $1 AND user_id = $2
 	`
 	var lb domain.LoadBalancer
-	err := r.db.QueryRow(ctx, query, key).Scan(
-		&lb.ID, &lb.IdempotencyKey, &lb.Name, &lb.VpcID, &lb.Port, &lb.Algorithm, &lb.Status, &lb.Version, &lb.CreatedAt,
+	err := r.db.QueryRow(ctx, query, key, userID).Scan(
+		&lb.ID, &lb.UserID, &lb.IdempotencyKey, &lb.Name, &lb.VpcID, &lb.Port, &lb.Algorithm, &lb.Status, &lb.Version, &lb.CreatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -75,12 +78,14 @@ func (r *LBRepository) GetByIdempotencyKey(ctx context.Context, key string) (*do
 }
 
 func (r *LBRepository) List(ctx context.Context) ([]*domain.LoadBalancer, error) {
+	userID := appcontext.UserIDFromContext(ctx)
 	query := `
-		SELECT id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, status, version, created_at
+		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, status, version, created_at
 		FROM load_balancers
+		WHERE user_id = $1
 		ORDER BY created_at DESC
 	`
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list load balancers", err)
 	}
@@ -90,7 +95,7 @@ func (r *LBRepository) List(ctx context.Context) ([]*domain.LoadBalancer, error)
 	for rows.Next() {
 		var lb domain.LoadBalancer
 		err := rows.Scan(
-			&lb.ID, &lb.IdempotencyKey, &lb.Name, &lb.VpcID, &lb.Port, &lb.Algorithm, &lb.Status, &lb.Version, &lb.CreatedAt,
+			&lb.ID, &lb.UserID, &lb.IdempotencyKey, &lb.Name, &lb.VpcID, &lb.Port, &lb.Algorithm, &lb.Status, &lb.Version, &lb.CreatedAt,
 		)
 		if err != nil {
 			return nil, errors.Wrap(errors.Internal, "failed to scan load balancer", err)
@@ -104,9 +109,9 @@ func (r *LBRepository) Update(ctx context.Context, lb *domain.LoadBalancer) erro
 	query := `
 		UPDATE load_balancers
 		SET name = $1, port = $2, algorithm = $3, status = $4, version = version + 1
-		WHERE id = $5 AND version = $6
+		WHERE id = $5 AND version = $6 AND user_id = $7
 	`
-	cmd, err := r.db.Exec(ctx, query, lb.Name, lb.Port, lb.Algorithm, lb.Status, lb.ID, lb.Version)
+	cmd, err := r.db.Exec(ctx, query, lb.Name, lb.Port, lb.Algorithm, lb.Status, lb.ID, lb.Version, lb.UserID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to update load balancer", err)
 	}
@@ -118,8 +123,9 @@ func (r *LBRepository) Update(ctx context.Context, lb *domain.LoadBalancer) erro
 }
 
 func (r *LBRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM load_balancers WHERE id = $1`
-	cmd, err := r.db.Exec(ctx, query, id)
+	userID := appcontext.UserIDFromContext(ctx)
+	query := `DELETE FROM load_balancers WHERE id = $1 AND user_id = $2`
+	cmd, err := r.db.Exec(ctx, query, id, userID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to delete load balancer", err)
 	}

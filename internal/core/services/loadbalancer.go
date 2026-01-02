@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
@@ -46,6 +47,7 @@ func (s *LBService) Create(ctx context.Context, name string, vpcID uuid.UUID, po
 
 	lb := &domain.LoadBalancer{
 		ID:             uuid.New(),
+		UserID:         appcontext.UserIDFromContext(ctx),
 		IdempotencyKey: idempotencyKey,
 		Name:           name,
 		VpcID:          vpcID,
