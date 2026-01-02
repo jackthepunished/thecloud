@@ -76,6 +76,11 @@ func (w *AutoScalingWorker) evaluateAllGroups(ctx context.Context) {
 	}
 
 	for _, group := range groups {
+		if group.Status == domain.ScalingGroupStatusDeleting {
+			w.cleanupGroup(ctx, group, instancesByGroup[group.ID])
+			continue
+		}
+
 		// Calculate current count from actual instances, not just DB field
 		// DB field `CurrentCount` is kept in sync but source of truth is the link table
 		instances := instancesByGroup[group.ID]
@@ -89,6 +94,26 @@ func (w *AutoScalingWorker) evaluateAllGroups(ctx context.Context) {
 
 		w.reconcileInstances(ctx, group, instances)
 		w.evaluatePolicies(ctx, group, instances)
+	}
+}
+
+func (w *AutoScalingWorker) cleanupGroup(ctx context.Context, group *domain.ScalingGroup, instanceIDs []uuid.UUID) {
+	if len(instanceIDs) == 0 {
+		// All instances gone, delete the group record
+		if err := w.repo.DeleteGroup(ctx, group.ID); err != nil {
+			log.Printf("AutoScaling: failed to delete group record %s: %v", group.ID, err)
+		} else {
+			log.Printf("AutoScaling: successfully deleted group %s", group.Name)
+		}
+		return
+	}
+
+	for _, instID := range instanceIDs {
+		// Ensure zero desired count to prevent interference
+		group.DesiredCount = 0
+		if err := w.scaleIn(ctx, group, instID, nil); err != nil {
+			log.Printf("AutoScaling: failed to cleanup instance %s for deleting group: %v", instID, err)
+		}
 	}
 }
 

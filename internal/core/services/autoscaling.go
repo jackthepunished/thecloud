@@ -95,24 +95,16 @@ func (s *AutoScalingService) ListGroups(ctx context.Context) ([]*domain.ScalingG
 }
 
 func (s *AutoScalingService) DeleteGroup(ctx context.Context, id uuid.UUID) error {
-	// Fetch instances before deleting group
-	instanceIDs, err := s.repo.GetInstancesInGroup(ctx, id)
+	group, err := s.repo.GetGroupByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	// Delete group first to stop worker from managing them (and CASCADE removes relationships)
-	if err := s.repo.DeleteGroup(ctx, id); err != nil {
-		return err
-	}
-
-	// Terminate instances synchronously to ensure cleanup.
-	for _, instID := range instanceIDs {
-		// Ignore errors during termination of individual instances to ensure best-effort cleanup
-		_ = s.instanceSvc.TerminateInstance(ctx, instID.String())
-	}
-
-	return nil
+	// Mark as DELETING to let worker handle cleanup asynchronously
+	group.Status = domain.ScalingGroupStatusDeleting
+	group.MinInstances = 0 // Allow desired to be 0
+	group.DesiredCount = 0 // Stop scaling out immediately
+	return s.repo.UpdateGroup(ctx, group)
 }
 
 // SetDesiredCapacity just updates the DB. Worker reconciles.

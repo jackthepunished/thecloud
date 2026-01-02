@@ -18,6 +18,7 @@ type ScalingGroupStatus string
 const (
 	ScalingGroupStatusActive   ScalingGroupStatus = "ACTIVE"
 	ScalingGroupStatusUpdating ScalingGroupStatus = "UPDATING"
+	ScalingGroupStatusDeleting ScalingGroupStatus = "DELETING"
 	ScalingGroupStatusDeleted  ScalingGroupStatus = "DELETED"
 )
 

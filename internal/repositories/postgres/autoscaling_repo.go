@@ -154,10 +154,16 @@ func (r *AutoScalingRepo) CountGroupsByVPC(ctx context.Context, vpcID uuid.UUID)
 func (r *AutoScalingRepo) UpdateGroup(ctx context.Context, group *domain.ScalingGroup) error {
 	query := `
 		UPDATE scaling_groups
-		SET desired_count = $1, current_count = $2, status = $3, version = version + 1, updated_at = NOW()
-		WHERE id = $4
+		SET desired_count = $1, current_count = $2, status = $3, 
+			min_instances = $4, max_instances = $5,
+			version = version + 1, updated_at = NOW()
+		WHERE id = $6
 	`
-	_, err := r.db.Exec(ctx, query, group.DesiredCount, group.CurrentCount, group.Status, group.ID)
+	_, err := r.db.Exec(ctx, query,
+		group.DesiredCount, group.CurrentCount, group.Status,
+		group.MinInstances, group.MaxInstances,
+		group.ID,
+	)
 	return err
 }
 
