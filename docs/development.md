@@ -27,7 +27,7 @@ Welcome to the **The Cloud** operational manual. This guide will help you set up
 1.  **Clone the Repository**:
     ```bash
     git clone https://github.com/PoyrazK/thecloud.git
-    cd Mini_AWS
+    cd thecloud
     ```
 
 2.  **Environment Variables**:
@@ -71,7 +71,7 @@ The `Makefile` works natively on macOS.
 1.  **Clone the Repository**:
     ```powershell
     git clone https://github.com/PoyrazK/thecloud.git
-    cd Mini_AWS
+    cd thecloud
     ```
 
 2.  **Environment Variables**:

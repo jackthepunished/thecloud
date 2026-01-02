@@ -50,8 +50,8 @@ Choose from "Good First Issue" items above or check [GitHub Issues](https://gith
 
 ### 2. Fork & Clone
 ```bash
-git clone https://github.com/YOUR_USERNAME/Mini_AWS.git
-cd Mini_AWS
+git clone https://github.com/YOUR_USERNAME/thecloud.git
+cd thecloud
 ```
 
 ### 3. Create a Branch
