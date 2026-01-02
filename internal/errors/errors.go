@@ -7,12 +7,13 @@ import (
 type Type string
 
 const (
-	NotFound     Type = "NOT_FOUND"
-	InvalidInput Type = "INVALID_INPUT"
-	Internal     Type = "INTERNAL"
-	Unauthorized Type = "UNAUTHORIZED"
-	Conflict     Type = "CONFLICT"
-	Forbidden    Type = "FORBIDDEN"
+	NotFound              Type = "NOT_FOUND"
+	InvalidInput          Type = "INVALID_INPUT"
+	Internal              Type = "INTERNAL"
+	Unauthorized          Type = "UNAUTHORIZED"
+	Conflict              Type = "CONFLICT"
+	Forbidden             Type = "FORBIDDEN"
+	ResourceLimitExceeded Type = "RESOURCE_LIMIT_EXCEEDED"
 
 	// Storage Errors
 	BucketNotFound Type = "BUCKET_NOT_FOUND"
