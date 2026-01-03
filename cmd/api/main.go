@@ -154,6 +154,10 @@ func main() {
 	fnSvc := services.NewFunctionService(fnRepo, dockerAdapter, fileStore, logger)
 	fnHandler := httphandlers.NewFunctionHandler(fnSvc)
 
+	cacheRepo := postgres.NewCacheRepository(db)
+	cacheSvc := services.NewCacheService(cacheRepo, dockerAdapter, vpcRepo, eventSvc, logger)
+	cacheHandler := httphandlers.NewCacheHandler(cacheSvc)
+
 	// 5. Engine & Middleware
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -317,6 +321,19 @@ func main() {
 		fnGroup.DELETE("/:id", fnHandler.Delete)
 		fnGroup.POST("/:id/invoke", fnHandler.Invoke)
 		fnGroup.GET("/:id/logs", fnHandler.GetLogs)
+	}
+
+	// Cache Routes (Protected)
+	cacheGroup := r.Group("/caches")
+	cacheGroup.Use(httputil.Auth(identitySvc))
+	{
+		cacheGroup.POST("", cacheHandler.Create)
+		cacheGroup.GET("", cacheHandler.List)
+		cacheGroup.GET("/:id", cacheHandler.Get)
+		cacheGroup.DELETE("/:id", cacheHandler.Delete)
+		cacheGroup.GET("/:id/connection", cacheHandler.GetConnectionString)
+		cacheGroup.POST("/:id/flush", cacheHandler.Flush)
+		cacheGroup.GET("/:id/stats", cacheHandler.GetStats)
 	}
 
 	// Auto-Scaling Routes (Protected)
