@@ -303,3 +303,114 @@ Delete a cache instance.
 ```bash
 cloud cache rm my-redis
 ```
+
+---
+
+## db
+Manage managed database instances (RDS).
+
+### `db list`
+List all database instances.
+```bash
+cloud db list
+```
+
+### `db create`
+Create a new managed database instance.
+```bash
+cloud db create --name my-db --engine postgres --version 16
+```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--name` | (required) | Database name |
+| `--engine` | `postgres` | Engine (postgres/mysql) |
+| `--version` | `16` | Engine version |
+| `--vpc` | | VPC ID |
+
+### `db connection <id>`
+Get database connection string.
+```bash
+cloud db connection <db-id>
+```
+
+### `db show <id>`
+Show detailed database information.
+```bash
+cloud db show <db-id>
+```
+
+### `db rm <id>`
+Remove a database instance.
+```bash
+cloud db rm <db-id>
+```
+
+---
+
+## secrets
+Manage encrypted secrets.
+
+### `secrets list`
+List all secrets (values redacted).
+```bash
+cloud secrets list
+```
+
+### `secrets create`
+Store a new encrypted secret.
+```bash
+cloud secrets create --name api-key --value sk_12345
+```
+
+### `secrets get <id>`
+Decrypt and show a secret value.
+```bash
+cloud secrets get <id>
+```
+
+### `secrets rm <id>`
+Remove a secret.
+```bash
+cloud secrets rm <id>
+```
+
+---
+
+## fn
+Manage CloudFunctions (Serverless).
+
+### `fn list`
+List all functions.
+```bash
+cloud fn list
+```
+
+### `fn create`
+Create a new function.
+```bash
+cloud fn create --name my-fn --runtime nodejs20 --code ./func.zip
+```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--name` | (required) | Function name |
+| `--code` | (required) | Path to zip file |
+| `--runtime` | `nodejs20` | Runtime environment |
+| `--handler` | `index.handler` | Entry point |
+
+### `fn invoke <id>`
+Invoke a function.
+```bash
+cloud fn invoke my-fn --payload '{"foo":"bar"}'
+```
+
+### `fn logs <id>`
+Get recent logs for a function.
+```bash
+cloud fn logs my-fn
+```
+
+### `fn rm <id>`
+Remove a function.
+```bash
+cloud fn rm my-fn
+```

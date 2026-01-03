@@ -7,13 +7,13 @@ To build the world's best open-source cloud platform that anyone can run, modify
 - **Storage**: S3-compatible object storage (Upload, Download, Delete)
 - **Block Storage**: Persistent volumes that survive instance termination
 - **Networking**: VPC with isolated Docker networks
-- **Networking**: VPC with isolated Docker networks
 - **Identity**: API Key authentication ([Guide](docs/guides/authentication.md))
 - **Observability**: Real-time CPU/Memory metrics and System Events
 - **Load Balancer**: Layer 7 HTTP traffic distribution
 - **Auto-Scaling**: Dynamic scaling of compute resources based on metrics
 - **Managed Databases (RDS)**: Launch PostgreSQL/MySQL instances with a single command ([Guide](docs/guides/rds.md))
 - **Managed Caches (Redis)**: Launch and manage Redis instances ([Guide](docs/guides/cache.md))
+- **Cloud Functions (Serverless)**: Run logic without managing servers ([Guide](docs/guides/functions.md))
 - **Secrets Manager**: Encrypted storage for API keys and sensitive config ([Guide](docs/guides/secrets.md))
 - **Console**: Interactive Next.js Dashboard for visual resource management
 
@@ -84,6 +84,7 @@ npm run dev
 | [Networking](docs/guides/networking.md) | VPCs and Network isolation |
 | [Storage](docs/guides/storage.md) | Object and Block storage |
 | [Managed Caches](docs/guides/cache.md) | Redis cache management |
+| [Cloud Functions](docs/guides/functions.md) | Serverless execution |
 
 ## 📊 KPIs
 - Time to Hello World: < 5 min
