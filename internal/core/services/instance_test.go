@@ -93,8 +93,8 @@ type MockDocker struct {
 	mock.Mock
 }
 
-func (m *MockDocker) CreateContainer(ctx context.Context, name, image string, ports []string, networkID string, volumeBinds []string) (string, error) {
-	args := m.Called(ctx, name, image, ports, networkID, volumeBinds)
+func (m *MockDocker) CreateContainer(ctx context.Context, name, image string, ports []string, networkID string, volumeBinds []string, env []string) (string, error) {
+	args := m.Called(ctx, name, image, ports, networkID, volumeBinds, env)
 	return args.String(0), args.Error(1)
 }
 
@@ -119,6 +119,11 @@ func (m *MockDocker) GetLogs(ctx context.Context, id string) (io.ReadCloser, err
 func (m *MockDocker) CreateNetwork(ctx context.Context, name string) (string, error) {
 	args := m.Called(ctx, name)
 	return args.String(0), args.Error(1)
+}
+
+func (m *MockDocker) GetContainerPort(ctx context.Context, id string, port string) (int, error) {
+	args := m.Called(ctx, id, port)
+	return args.Int(0), args.Error(1)
 }
 
 func (m *MockDocker) GetContainerStats(ctx context.Context, containerID string) (io.ReadCloser, error) {
@@ -222,7 +227,7 @@ func TestLaunchInstance_Success(t *testing.T) {
 	ports := "8080:80"
 
 	repo.On("Create", ctx, mock.AnythingOfType("*domain.Instance")).Return(nil)
-	docker.On("CreateContainer", ctx, mock.Anything, image, []string{"8080:80"}, "", []string(nil)).Return("container-123", nil)
+	docker.On("CreateContainer", ctx, mock.Anything, image, []string{"8080:80"}, "", []string(nil), []string(nil)).Return("container-123", nil)
 	repo.On("Update", ctx, mock.AnythingOfType("*domain.Instance")).Return(nil)
 	eventSvc.On("RecordEvent", ctx, "INSTANCE_LAUNCH", mock.Anything, "INSTANCE", mock.Anything).Return(nil)
 
@@ -253,7 +258,7 @@ func TestLaunchInstance_PropagatesUserID(t *testing.T) {
 	repo.On("Create", ctx, mock.MatchedBy(func(inst *domain.Instance) bool {
 		return inst.UserID == expectedUserID
 	})).Return(nil)
-	docker.On("CreateContainer", ctx, mock.Anything, image, []string(nil), "", []string(nil)).Return("container-456", nil)
+	docker.On("CreateContainer", ctx, mock.Anything, image, []string(nil), "", []string(nil), []string(nil)).Return("container-456", nil)
 	repo.On("Update", ctx, mock.AnythingOfType("*domain.Instance")).Return(nil)
 	eventSvc.On("RecordEvent", ctx, "INSTANCE_LAUNCH", mock.Anything, "INSTANCE", mock.Anything).Return(nil)
 

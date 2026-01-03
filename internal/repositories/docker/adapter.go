@@ -46,7 +46,7 @@ func (a *DockerAdapter) Ping(ctx context.Context) error {
 	return err
 }
 
-func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName string, ports []string, networkID string, volumeBinds []string) (string, error) {
+func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName string, ports []string, networkID string, volumeBinds []string, env []string) (string, error) {
 	// 1. Ensure image exists (pull if not) - with timeout
 	pullCtx, pullCancel := context.WithTimeout(ctx, ImagePullTimeout)
 	defer pullCancel()
@@ -61,6 +61,7 @@ func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName str
 	// 2. Configure container
 	config := &container.Config{
 		Image:        imageName,
+		Env:          env,
 		ExposedPorts: make(nat.PortSet),
 	}
 	hostConfig := &container.HostConfig{
@@ -157,6 +158,27 @@ func (a *DockerAdapter) GetContainerStats(ctx context.Context, containerID strin
 		return nil, err
 	}
 	return stats.Body, nil
+}
+
+func (a *DockerAdapter) GetContainerPort(ctx context.Context, containerID string, containerPort string) (int, error) {
+	inspect, err := a.cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to inspect container: %w", err)
+	}
+
+	cPort := nat.Port(containerPort + "/tcp")
+	bindings, ok := inspect.NetworkSettings.Ports[cPort]
+	if !ok || len(bindings) == 0 {
+		return 0, fmt.Errorf("no port binding found for %s", containerPort)
+	}
+
+	var hostPort int
+	_, err = fmt.Sscanf(bindings[0].HostPort, "%d", &hostPort)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse host port: %w", err)
+	}
+
+	return hostPort, nil
 }
 
 func (a *DockerAdapter) CreateNetwork(ctx context.Context, name string) (string, error) {
