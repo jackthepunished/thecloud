@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS invocations;
+DROP TABLE IF EXISTS functions;
