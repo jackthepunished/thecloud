@@ -138,6 +138,7 @@ func (w *PipelineWorker) processJob(workerCtx context.Context, msg *ports.Durabl
 	ctx, cancel := context.WithTimeout(workerCtx, 30*time.Minute)
 	defer cancel()
 	ctx = appcontext.WithUserID(ctx, job.UserID)
+	ctx = appcontext.WithTenantID(ctx, job.TenantID)
 
 	build, pipeline, err := w.loadBuildAndPipeline(ctx, job)
 	if err != nil {
@@ -213,7 +214,7 @@ func (w *PipelineWorker) processJob(workerCtx context.Context, msg *ports.Durabl
 }
 
 func (w *PipelineWorker) loadBuildAndPipeline(ctx context.Context, job domain.BuildJob) (*domain.Build, *domain.Pipeline, error) {
-	build, err := w.repo.GetBuild(ctx, job.BuildID, job.UserID)
+	build, err := w.repo.GetBuild(ctx, job.BuildID, job.TenantID)
 	if err != nil {
 		w.logger.Error("failed to load build", "build_id", job.BuildID, "error", err)
 		return nil, nil, err
@@ -222,7 +223,7 @@ func (w *PipelineWorker) loadBuildAndPipeline(ctx context.Context, job domain.Bu
 		return nil, nil, nil
 	}
 
-	pipeline, err := w.repo.GetPipeline(ctx, job.PipelineID, job.UserID)
+	pipeline, err := w.repo.GetPipeline(ctx, job.PipelineID, job.TenantID)
 	if err != nil {
 		w.logger.Error("failed to load pipeline", "pipeline_id", job.PipelineID, "error", err)
 		w.failBuild(ctx, build, "pipeline load error: "+err.Error())

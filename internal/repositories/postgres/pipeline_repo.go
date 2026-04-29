@@ -168,9 +168,9 @@ func (r *PipelineRepository) UpdateBuild(ctx context.Context, build *domain.Buil
 			started_at = $2,
 			finished_at = $3,
 			updated_at = NOW()
-		WHERE id = $4 AND user_id = $5
+		WHERE id = $4 AND tenant_id = $5
 	`
-	_, err := r.db.Exec(ctx, query, build.Status, build.StartedAt, build.FinishedAt, build.ID, build.UserID)
+	_, err := r.db.Exec(ctx, query, build.Status, build.StartedAt, build.FinishedAt, build.ID, build.TenantID)
 	return err
 }
 
@@ -195,15 +195,15 @@ func (r *PipelineRepository) CreateBuildStep(ctx context.Context, step *domain.B
 	return err
 }
 
-func (r *PipelineRepository) ListBuildSteps(ctx context.Context, buildID, userID uuid.UUID) ([]*domain.BuildStep, error) {
+func (r *PipelineRepository) ListBuildSteps(ctx context.Context, buildID, tenantID uuid.UUID) ([]*domain.BuildStep, error) {
 	query := `
 		SELECT s.id, s.build_id, s.name, s.image, s.commands, s.status, s.exit_code, s.started_at, s.finished_at, s.created_at, s.updated_at
 		FROM build_steps s
 		INNER JOIN builds b ON b.id = s.build_id
-		WHERE s.build_id = $1 AND b.user_id = $2
+		WHERE s.build_id = $1 AND b.tenant_id = $2
 		ORDER BY s.created_at ASC
 	`
-	rows, err := r.db.Query(ctx, query, buildID, userID)
+	rows, err := r.db.Query(ctx, query, buildID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (r *PipelineRepository) AppendBuildLog(ctx context.Context, log *domain.Bui
 	return err
 }
 
-func (r *PipelineRepository) ListBuildLogs(ctx context.Context, buildID, userID uuid.UUID, limit int) ([]*domain.BuildLog, error) {
+func (r *PipelineRepository) ListBuildLogs(ctx context.Context, buildID, tenantID uuid.UUID, limit int) ([]*domain.BuildLog, error) {
 	if limit <= 0 {
 		limit = 200
 	}
@@ -242,11 +242,11 @@ func (r *PipelineRepository) ListBuildLogs(ctx context.Context, buildID, userID 
 		SELECT l.id, l.build_id, l.step_id, l.content, l.created_at
 		FROM build_logs l
 		INNER JOIN builds b ON b.id = l.build_id
-		WHERE l.build_id = $1 AND b.user_id = $2
+		WHERE l.build_id = $1 AND b.tenant_id = $2
 		ORDER BY l.created_at ASC
 		LIMIT $3
 	`
-	rows, err := r.db.Query(ctx, query, buildID, userID, limit)
+	rows, err := r.db.Query(ctx, query, buildID, tenantID, limit)
 	if err != nil {
 		return nil, err
 	}

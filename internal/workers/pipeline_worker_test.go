@@ -181,11 +181,12 @@ func TestPipelineWorker_processJob(t *testing.T) {
 	buildID := uuid.New()
 	pipelineID := uuid.New()
 	userID := uuid.New()
-	job := domain.BuildJob{BuildID: buildID, PipelineID: pipelineID, UserID: userID}
+	tenantID := uuid.New()
+	job := domain.BuildJob{BuildID: buildID, PipelineID: pipelineID, UserID: userID, TenantID: tenantID}
 	msg := &ports.DurableMessage{ID: "1-0", Queue: pipelineQueueName}
 
 	t.Run("Success", func(t *testing.T) {
-		build := &domain.Build{ID: buildID, PipelineID: pipelineID, UserID: userID}
+		build := &domain.Build{ID: buildID, PipelineID: pipelineID, UserID: userID, TenantID: tenantID}
 		pipeline := &domain.Pipeline{
 			ID: pipelineID,
 			Config: domain.PipelineConfig{
@@ -200,8 +201,8 @@ func TestPipelineWorker_processJob(t *testing.T) {
 			},
 		}
 
-		repo.On("GetBuild", mock.Anything, buildID, userID).Return(build, nil).Once()
-		repo.On("GetPipeline", mock.Anything, pipelineID, userID).Return(pipeline, nil).Once()
+		repo.On("GetBuild", mock.Anything, buildID, tenantID).Return(build, nil).Once()
+		repo.On("GetPipeline", mock.Anything, pipelineID, tenantID).Return(pipeline, nil).Once()
 		repo.On("UpdateBuild", mock.Anything, mock.MatchedBy(func(b *domain.Build) bool {
 			return b.Status == domain.BuildStatusRunning
 		})).Return(nil).Once()

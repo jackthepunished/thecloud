@@ -49,6 +49,7 @@ type BuildJob struct {
 	BuildID    uuid.UUID        `json:"build_id"`
 	PipelineID uuid.UUID        `json:"pipeline_id"`
 	UserID     uuid.UUID        `json:"user_id"`
+	TenantID   uuid.UUID        `json:"tenant_id"`
 	CommitHash string           `json:"commit_hash,omitempty"`
 	Trigger    BuildTriggerType `json:"trigger"`
 }

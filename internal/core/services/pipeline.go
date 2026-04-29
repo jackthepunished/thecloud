@@ -237,6 +237,7 @@ func (s *PipelineService) TriggerBuildWebhook(ctx context.Context, opts ports.We
 	}
 
 	webhookCtx := appcontext.WithUserID(ctx, pipeline.UserID)
+	webhookCtx = appcontext.WithTenantID(webhookCtx, pipeline.TenantID)
 	return s.createAndQueueBuild(webhookCtx, pipeline, commitHash, domain.BuildTriggerWebhook)
 }
 
@@ -263,6 +264,7 @@ func (s *PipelineService) createAndQueueBuild(ctx context.Context, pipeline *dom
 		BuildID:    build.ID,
 		PipelineID: build.PipelineID,
 		UserID:     build.UserID,
+		TenantID:   build.TenantID,
 		CommitHash: build.CommitHash,
 		Trigger:    build.TriggerType,
 	}
