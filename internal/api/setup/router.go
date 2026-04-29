@@ -91,7 +91,7 @@ func InitHandlers(svcs *Services, cfg *platform.Config, logger *slog.Logger) *Ha
 		Event:         httphandlers.NewEventHandler(svcs.Event),
 		Volume:        httphandlers.NewVolumeHandler(svcs.Volume),
 		LB:            httphandlers.NewLBHandler(svcs.LB),
-		Dashboard:     httphandlers.NewDashboardHandler(svcs.Dashboard),
+		Dashboard:     httphandlers.NewDashboardHandler(svcs.Dashboard, cfg.WSAllowedOrigins),
 		RBAC:          httphandlers.NewRBACHandler(svcs.RBAC),
 		Snapshot:      httphandlers.NewSnapshotHandler(svcs.Snapshot),
 		Stack:         httphandlers.NewStackHandler(svcs.Stack),

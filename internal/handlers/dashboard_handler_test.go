@@ -152,6 +152,100 @@ func TestDashboardHandlerStreamEvents(t *testing.T) {
 
 	assert.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
 	assert.Contains(t, w.Body.String(), "event:summary")
+	// Same-origin (no Origin header) → must not emit a wildcard CORS header. See #347.
+	assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func TestDashboardHandlerStreamEventsCORS(t *testing.T) {
+	t.Parallel()
+
+	runStream := func(t *testing.T, h *DashboardHandler, origin string) *httptest.ResponseRecorder {
+		t.Helper()
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		r.GET("/stream", h.StreamEvents)
+
+		req, err := http.NewRequest("GET", "/stream", nil)
+		require.NoError(t, err)
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		req = req.WithContext(ctx)
+
+		w := httptest.NewRecorder()
+		done := make(chan struct{})
+		go func() {
+			r.ServeHTTP(w, req)
+			close(done)
+		}()
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+		<-done
+		return w
+	}
+
+	t.Run("AllowedOriginIsEchoed", func(t *testing.T) {
+		t.Parallel()
+		mockSvc := new(dashboardServiceMock)
+		mockSvc.On("GetSummary", mock.Anything).Return(&domain.ResourceSummary{}, nil)
+		h := NewDashboardHandler(mockSvc, "https://dash.example.com,https://other.example.com")
+
+		w := runStream(t, h, "https://dash.example.com")
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "https://dash.example.com", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Equal(t, "true", w.Header().Get("Access-Control-Allow-Credentials"))
+		assert.Equal(t, "Origin", w.Header().Get("Vary"))
+	})
+
+	t.Run("DisallowedOriginRejected", func(t *testing.T) {
+		t.Parallel()
+		mockSvc := new(dashboardServiceMock)
+		h := NewDashboardHandler(mockSvc, "https://dash.example.com")
+
+		w := runStream(t, h, "https://attacker.example.com")
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
+		mockSvc.AssertNotCalled(t, "GetSummary", mock.Anything)
+	})
+
+	t.Run("EmptyAllowlistRejectsCrossOrigin", func(t *testing.T) {
+		t.Parallel()
+		mockSvc := new(dashboardServiceMock)
+		h := NewDashboardHandler(mockSvc)
+
+		w := runStream(t, h, "https://attacker.example.com")
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
+		mockSvc.AssertNotCalled(t, "GetSummary", mock.Anything)
+	})
+
+	t.Run("WildcardEchoesOriginNotStar", func(t *testing.T) {
+		t.Parallel()
+		mockSvc := new(dashboardServiceMock)
+		mockSvc.On("GetSummary", mock.Anything).Return(&domain.ResourceSummary{}, nil)
+		h := NewDashboardHandler(mockSvc, "*")
+
+		w := runStream(t, h, "https://anything.example.com")
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "https://anything.example.com", w.Header().Get("Access-Control-Allow-Origin"))
+	})
+
+	t.Run("SameOriginEmitsNoCORSHeader", func(t *testing.T) {
+		t.Parallel()
+		mockSvc := new(dashboardServiceMock)
+		mockSvc.On("GetSummary", mock.Anything).Return(&domain.ResourceSummary{}, nil)
+		h := NewDashboardHandler(mockSvc, "https://dash.example.com")
+
+		w := runStream(t, h, "")
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
+	})
 }
 
 func TestDashboardHandlerGetRecentEventsLimits(t *testing.T) {
